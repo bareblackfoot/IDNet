@@ -38,12 +38,21 @@ def parse_args():
   parser.add_argument('--num_dets', dest='max_per_image',
             help='max number of detections per image',
             default=100, type=int)
+  parser.add_argument('--thresh', dest='thresh',
+            help='',
+            default=-4.0, type=float)
+  parser.add_argument('--sim_thresh', dest='sim_thresh',
+            help='',
+            default=0.7, type=float)
   parser.add_argument('--tag', dest='tag',
                         help='tag of the model',
                         default='', type=str)
   parser.add_argument('--net', dest='net',
                       help='vgg16, res50, res101, res152, mobile',
                       default='res50', type=str)
+  parser.add_argument('--test', dest='test',
+                      help='NMS or DPP inference',
+                      default="NMS", type=str)
   parser.add_argument('--set', dest='set_cfgs',
                         help='set config keys', default=None,
                         nargs=argparse.REMAINDER)
@@ -103,7 +112,7 @@ if __name__ == '__main__':
     raise NotImplementedError
 
   # load model
-  net.create_architecture("TEST", imdb.num_classes, tag='default',
+  net.create_architecture(args.test, imdb.num_classes, tag='default',
                           anchor_scales=cfg.ANCHOR_SCALES,
                           anchor_ratios=cfg.ANCHOR_RATIOS)
 

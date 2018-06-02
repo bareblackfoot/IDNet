@@ -13,10 +13,18 @@ __C = edict()
 #   from fast_rcnn_config import cfg
 cfg = __C
 
+#IDN o
+__C.EPSILON = 0.001
+
 #
 # Training options
 #
 __C.TRAIN = edict()
+__C.TRAIN.SIM_VAR = 10.
+__C.TRAIN.NUM_SIM_TARGET_BOXES = 100
+__C.TRAIN.QUAL_TOPN = 5
+__C.TRAIN.QUAL_LR = 0.01
+__C.TRAIN.SIM_LR = 0.01
 
 # Initial learning rate
 __C.TRAIN.LEARNING_RATE = 0.001
@@ -97,7 +105,7 @@ __C.TRAIN.SNAPSHOT_ITERS = 5000
 
 # solver.prototxt specifies the snapshot path prefix, this adds an optional
 # infix to yield the path: <prefix>[_<infix>]_iters_XYZ.caffemodel
-__C.TRAIN.SNAPSHOT_PREFIX = 'res101_faster_rcnn'
+__C.TRAIN.SNAPSHOT_PREFIX = 'vgg16_faster_rcnn'
 
 # Normalize the targets (subtract empirical mean, divide by empirical stddev)
 __C.TRAIN.BBOX_NORMALIZE_TARGETS = True

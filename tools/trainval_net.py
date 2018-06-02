@@ -21,17 +21,22 @@ import tensorflow as tf
 from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
 from nets.mobilenet_v1 import mobilenetv1
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def parse_args():
   """
-  Parse input arguments
+  Parse input arguments/home/blackfoot/git/idnet/data/imagenet_weights/vgg16.ckpt
   """
   parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
   parser.add_argument('--cfg', dest='cfg_file',
                       help='optional config file',
-                      default=None, type=str)
+                      default="/home/blackfoot/git/idnet/experiments/cfgs/vgg16.yml", type=str)
   parser.add_argument('--weight', dest='weight',
                       help='initialize with pretrained model weights',
+                      default="/home/blackfoot/git/idnet/output/vgg16/voc_2007_trainval/default/vgg16_faster_rcnn_iter_60000.ckpt",
                       type=str)
   parser.add_argument('--imdb', dest='imdb_name',
                       help='dataset to train on',
@@ -44,17 +49,20 @@ def parse_args():
                       default=70000, type=int)
   parser.add_argument('--tag', dest='tag',
                       help='tag of the model',
-                      default=None, type=str)
+                      default="default", type=str)
+  parser.add_argument('--mode', dest='mode',
+                      help='mode of training [FRCNN, QUAL, SIM]',
+                      default="QUAL", type=str)
   parser.add_argument('--net', dest='net',
                       help='vgg16, res50, res101, res152, mobile',
-                      default='res50', type=str)
+                      default='vgg16', type=str)
   parser.add_argument('--set', dest='set_cfgs',
                       help='set config keys', default=None,
                       nargs=argparse.REMAINDER)
 
-  if len(sys.argv) == 1:
-    parser.print_help()
-    sys.exit(1)
+  # if len(sys.argv) == 1:
+  #   parser.print_help()
+  #   sys.exit(1)
 
   args = parser.parse_args()
   return args
@@ -134,6 +142,6 @@ if __name__ == '__main__':
   else:
     raise NotImplementedError
     
-  train_net(net, imdb, roidb, valroidb, output_dir, tb_dir,
+  train_net(net, imdb, roidb, valroidb, output_dir, tb_dir, mode=args.mode,
             pretrained_model=args.weight,
             max_iters=args.max_iters)

@@ -23,6 +23,7 @@ import time
 
 import tensorflow as tf
 from tensorflow.python import pywrap_tensorflow
+from utils.myutils import *
 
 class SolverWrapper(object):
   """
@@ -81,7 +82,8 @@ class SolverWrapper(object):
 
   def from_snapshot(self, sess, sfile, nfile):
     print('Restoring model snapshots from {:s}'.format(sfile))
-    self.saver.restore(sess, sfile)
+    # self.saver.restore(sess, sfile)
+    load(sfile, sess, self.saver, name=self.pretrained_model.split("/")[-1].split(".")[0])
     print('Restored.')
     # Needs to restore the other hyper-parameters/states for training, (TODO xinlei) I have
     # tried my best to find the random states so that it can be recovered exactly
@@ -113,12 +115,17 @@ class SolverWrapper(object):
         print("It's likely that your checkpoint file has been compressed "
               "with SNAPPY.")
 
-  def construct_graph(self, sess):
+  def construct_graph(self, sess, mode):
     with sess.graph.as_default():
       # Set the random seed for tensorflow
       tf.set_random_seed(cfg.RNG_SEED)
+      self.frcnn_training = mode == 'FRCNN'
+      self.quality_training = mode == 'QUAL'
+      self.similarity_training = mode == 'SIM'
+      self.testing_nms = mode == 'NMS'
+      self.testing_dpp = mode == 'DPP'
       # Build the main computation graph
-      layers = self.net.create_architecture('TRAIN', self.imdb.num_classes, tag='default',
+      layers = self.net.create_architecture(mode, self.imdb.num_classes, tag='default',
                                             anchor_scales=cfg.ANCHOR_SCALES,
                                             anchor_ratios=cfg.ANCHOR_RATIOS)
       # Define the loss
@@ -239,13 +246,13 @@ class SolverWrapper(object):
       os.remove(str(sfile_meta))
       ss_paths.remove(sfile)
 
-  def train_model(self, sess, max_iters):
+  def train_model(self, sess, max_iters, mode):
     # Build data layers for both training and validation set
     self.data_layer = RoIDataLayer(self.roidb, self.imdb.num_classes)
     self.data_layer_val = RoIDataLayer(self.valroidb, self.imdb.num_classes, random=True)
 
     # Construct the computation graph
-    lr, train_op = self.construct_graph(sess)
+    lr, train_op = self.construct_graph(sess, mode)
 
     # Find previous snapshots if there is any to restore from
     lsf, nfiles, sfiles = self.find_previous()
@@ -254,6 +261,7 @@ class SolverWrapper(object):
     if lsf == 0:
       rate, last_snapshot_iter, stepsizes, np_paths, ss_paths = self.initialize(sess)
     else:
+      sess.run(tf.variables_initializer(tf.global_variables(), name='init'))
       rate, last_snapshot_iter, stepsizes, np_paths, ss_paths = self.restore(sess, 
                                                                             str(sfiles[-1]), 
                                                                             str(nfiles[-1]))
@@ -280,9 +288,16 @@ class SolverWrapper(object):
       now = time.time()
       if iter == 1 or now - last_summary_time > cfg.TRAIN.SUMMARY_INTERVAL:
         # Compute the graph with summary
-        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, total_loss, summary = \
+        out_blob, sim_train, qual_train = \
           self.net.train_step_with_summary(sess, blobs, train_op)
-        self.writer.add_summary(summary, float(iter))
+        if self.frcnn_training:
+            self.writer.add_summary(out_blob['summary'], float(iter))
+        elif self.quality_training:
+          if qual_train:
+            self.writer.add_summary(out_blob['summary'], float(iter))
+        elif self.similarity_training:
+          if sim_train:
+            self.writer.add_summary(out_blob['summary'], float(iter))
         # Also check the summary on the validation set
         blobs_val = self.data_layer_val.forward()
         summary_val = self.net.get_summary(sess, blobs_val)
@@ -290,17 +305,24 @@ class SolverWrapper(object):
         last_summary_time = now
       else:
         # Compute the graph without summary
-        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, total_loss = \
+        out_blob, sim_train, qual_train = \
           self.net.train_step(sess, blobs, train_op)
       timer.toc()
 
       # Display training information
       if iter % (cfg.TRAIN.DISPLAY) == 0:
-        print('iter: %d / %d, total loss: %.6f\n >>> rpn_loss_cls: %.6f\n '
-              '>>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f\n >>> lr: %f' % \
-              (iter, max_iters, total_loss, rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, lr.eval()))
+        print ('iter: %d / %d,' % (iter, max_iters))
+        if sim_train:
+          print(' >>> ID_loss: %.6f' % (out_blob['ID_loss']))
+        elif qual_train:
+          print(' >>> rescoring_loss: %.6f' % (out_blob['rescoring_loss']))
+          print(' >>> rpn_loss_cls: %.6f\n >>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f' %
+                (out_blob['rpn_loss_cls'], out_blob['rpn_loss_box'], out_blob['loss_cls'], out_blob['loss_box']))
+        else:
+          print(' >>> rpn_loss_cls: %.6f\n >>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f' %
+                (out_blob['rpn_loss_cls'], out_blob['rpn_loss_box'], out_blob['loss_cls'], out_blob['loss_box']))
+        print (' >>> lr: %f' % (lr.eval()))
         print('speed: {:.3f}s / iter'.format(timer.average_time))
-
       # Snapshotting
       if iter % cfg.TRAIN.SNAPSHOT_ITERS == 0:
         last_snapshot_iter = iter
@@ -360,7 +382,7 @@ def filter_roidb(roidb):
   return filtered_roidb
 
 
-def train_net(network, imdb, roidb, valroidb, output_dir, tb_dir,
+def train_net(network, imdb, roidb, valroidb, output_dir, tb_dir, mode,
               pretrained_model=None,
               max_iters=40000):
   """Train a Faster R-CNN network."""
@@ -374,5 +396,5 @@ def train_net(network, imdb, roidb, valroidb, output_dir, tb_dir,
     sw = SolverWrapper(sess, network, imdb, roidb, valroidb, output_dir, tb_dir,
                        pretrained_model=pretrained_model)
     print('Solving...')
-    sw.train_model(sess, max_iters)
+    sw.train_model(sess, max_iters, mode)
     print('done solving')

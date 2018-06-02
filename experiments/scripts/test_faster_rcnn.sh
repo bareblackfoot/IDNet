@@ -42,34 +42,25 @@ case ${DATASET} in
     ;;
 esac
 
-LOG="experiments/logs/test_${NET}_${TRAIN_IMDB}_${EXTRA_ARGS_SLUG}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
+if [[ ! -z  ${EXTRA_ARGS_SLUG}  ]]; then
+  LOG="experiments/logs/test_nms_${NET}_${TRAIN_IMDB}_${EXTRA_ARGS_SLUG}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
+  NET_FINAL=output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/${NET}_faster_rcnn_iter_${ITERS}.ckpt
+else
+  LOG="experiments/logs/test_nms_${NET}_${TRAIN_IMDB}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
+  NET_FINAL=output/${NET}/${TRAIN_IMDB}/default/${NET}_faster_rcnn_iter_${ITERS}.ckpt
+  TAG="default"
+fi
+
 exec &> >(tee -a "$LOG")
 echo Logging output to "$LOG"
 
-set +x
-if [[ ! -z  ${EXTRA_ARGS_SLUG}  ]]; then
-  NET_FINAL=output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/${NET}_faster_rcnn_iter_${ITERS}.ckpt
-else
-  NET_FINAL=output/${NET}/${TRAIN_IMDB}/default/${NET}_faster_rcnn_iter_${ITERS}.ckpt
-fi
-set -x
-
-if [[ ! -z  ${EXTRA_ARGS_SLUG}  ]]; then
-  CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/test_net.py \
-    --imdb ${TEST_IMDB} \
-    --model ${NET_FINAL} \
-    --cfg experiments/cfgs/${NET}.yml \
-    --tag ${EXTRA_ARGS_SLUG} \
-    --net ${NET} \
-    --set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
-          ${EXTRA_ARGS}
-else
-  CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/test_net.py \
-    --imdb ${TEST_IMDB} \
-    --model ${NET_FINAL} \
-    --cfg experiments/cfgs/${NET}.yml \
-    --net ${NET} \
-    --set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
-          ${EXTRA_ARGS}
-fi
+OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/test_net.py \
+--imdb ${TEST_IMDB} \
+--model ${NET_FINAL} \
+--cfg experiments/cfgs/${NET}.yml \
+--net ${NET} \
+--test "NMS" \
+--tag ${TAG} \
+--set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
+      ${EXTRA_ARGS}
 
