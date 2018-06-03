@@ -9,9 +9,6 @@ from model.config import cfg
 import copy
 
 def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
-    # input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, posDppLabel = \
-    #     _preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.1, top_n=cfg.TRAIN.QUAL_TOPN, scores_thresh=0.05)
-
     input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, posDppLabel = \
         _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.7, top_n=cfg.TRAIN.QUAL_TOPN, scores_thresh=0.05)
 
@@ -20,7 +17,6 @@ def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
     if len(input_boxes)==0 or len(dppLabel)>15:
-        # print len(dppLabel)
         input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
         input_clss = np.zeros((1, 1))
         input_scores = np.zeros((1,))
@@ -44,7 +40,6 @@ def idn_sim_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
     if len(input_boxes)==0 or len(dppLabel)>15:
-        # print len(dppLabel)
         input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
         input_clss = np.zeros((1, 1))
         input_scores = np.zeros((1,))
@@ -68,7 +63,6 @@ def idn_sim_target_layer(gts, im_info, num_clss):
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
     if len(input_boxes)==0 or len(dppLabel)>15:
-        # print "excepting"
         input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
         input_clss = np.zeros((1, 1))
         pIOU = np.zeros((1, 1))
@@ -132,7 +126,6 @@ def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh,
     else:
         gt_overlaps_temp = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
                                  np.ascontiguousarray(input_boxes, dtype=np.float))
-        # print gt_overlaps_temp
         assign_gt_ind_temp = np.argmax(gt_overlaps_temp, 0)
         assign_gt_ind_temp = np.where((np.max(gt_overlaps_temp, 0) > 0.8) & (gt_clss[assign_gt_ind_temp] == input_clss))[0]
         if len(assign_gt_ind_temp)<1:
@@ -159,11 +152,6 @@ def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh,
     gt_overlaps_temp = 1/gt_overlaps
     gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
     dppLabel = linear_sum_assignment(gt_overlaps_temp)[1]
-
-    # overlaps_temp = bbox_overlaps(
-    #     np.ascontiguousarray(input_boxes, dtype=np.float),
-    #     np.ascontiguousarray(gt_boxes, dtype=np.float))
-    # pos_label = np.where((np.max(overlaps_temp, 1) > thresh) & (input_clss == gt_clss[np.argmax(overlaps_temp, 1)]))[0]
 
     return input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, pos_label
 
@@ -210,7 +198,6 @@ def _preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh, top
     else:
         gt_overlaps_temp = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
                                  np.ascontiguousarray(input_boxes, dtype=np.float))
-        # print gt_overlaps_temp
         assign_gt_ind_temp = np.argmax(gt_overlaps_temp, 0)
         assign_gt_ind_temp = np.where((np.max(gt_overlaps_temp, 0) > 0.8) & (gt_clss[assign_gt_ind_temp] == input_clss))[0]
         if len(assign_gt_ind_temp)<1:
@@ -353,7 +340,6 @@ def idn_proposal_test_layer(scores, box_deltas, rois, im_info, num_clss):
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
     if len(input_boxes)==0:
-        # print "excepting"
         input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
         input_clss = np.zeros((1, 1))
         input_scores = np.zeros((1,))

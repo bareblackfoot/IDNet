@@ -314,43 +314,21 @@ class Network(object):
     ))
     return loss_box
 
-  def _rescoring_loss(self, idn_feat_sim, pIOU, dppLabel, posDppLabel, negDppLabel, quality): #
+  def _rescoring_loss(self, idn_feat_sim, pIOU, dppLabel, posDppLabel, negDppLabel, quality):
     self.V = V = tf.nn.l2_normalize(idn_feat_sim, 1)
     self.S = S = tf.matmul(V, V, False, True)
     M = tf.shape(V)[0]
     L = tf.sqrt(tf.tile(quality, [1, M])) * (0.6*S + 0.4*pIOU) * tf.sqrt(tf.tile(tf.transpose(quality), [M, 1]))
     L = (L + tf.transpose(L))/2.
 
-    # LOSS 1 : Increase score of the exact one probable bounding box for each object.
-    # denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
-    # nom = tf.reduce_prod(tf.gather(quality, dppLabel))*\
-    #             tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + cfg.EPSILON*tf.eye(tf.size(L[0])), dppLabel)),dppLabel)))))
-    # pos_loss = -tf.log(nom) + tf.log(denom)
-    # loss = pos_loss
-    # except_loss = tf.square(tf.reduce_prod(
-    #     tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), dppLabel)), dppLabel)))))
-
-    # LOSS 2 : Increase score of the exact one probable bounding box for each object .
-    #          And decrease the score of all subsets of bounding boxes that consist of bad bounding boxes.
-    # denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
-    # nom = tf.reduce_prod(tf.gather(quality, dppLabel))*\
-    #             tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + cfg.EPSILON*tf.eye(tf.size(L[0])), dppLabel)),dppLabel)))))
-    # pos_loss = -tf.log(nom) + tf.log(denom)
-    # n_nom = tf.reduce_prod(tf.gather(quality, negDppLabel)) * \
-    #               tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + tf.eye(tf.size(L[0])), negDppLabel)), negDppLabel)))))
-    # neg_loss = -tf.log(n_nom) + tf.log(denom)
-    # loss = pos_loss - neg_loss
-    # except_loss = tf.square(tf.reduce_prod(
-    #     tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), dppLabel)), dppLabel)))))
-
-    # LOSS 3 : Decrease the score of subsets that contain at least one bad bounding boxes. (The most mathematically probable form!)
+    # Rescoring Loss : Decrease the score of subsets that contain at least one bad bounding boxes. (The most mathematically probable form!)
     denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
     p_nom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L+tf.eye(tf.size(L[0])),posDppLabel)),posDppLabel)))))
     pos_loss = -tf.log(p_nom) + tf.log(denom)
     loss = pos_loss
     except_loss = tf.log(tf.square(tf.reduce_prod(
         tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), posDppLabel)), posDppLabel))))))
-    #
+
     # Give temporary loss
     loss = tf.cond(tf.is_nan(loss) | tf.is_inf(loss),
             lambda: instead(except_loss),
@@ -745,7 +723,6 @@ class Network(object):
       self._mode = "TEST"
     else:
       self._mode = "TRAIN"
-    # self._mode = mode
     self._anchor_scales = anchor_scales
     self._num_scales = len(anchor_scales)
 
@@ -758,9 +735,6 @@ class Network(object):
     self.similarity_training = mode == 'SIM'
     self.testing_nms = mode == 'NMS'
     self.testing_dpp = mode == 'DPP'
-    #
-    # training = mode == 'TRAIN'
-    # testing = mode == 'TEST'
 
     assert tag != None
 
