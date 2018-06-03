@@ -22,6 +22,8 @@ from utils.blob import im_list_to_blob
 from model.config import cfg, get_output_dir
 from model.bbox_transform import clip_boxes, bbox_transform_inv
 from model.nms_wrapper import nms
+from sklearn import preprocessing
+from utils.myutils import dpp_infer, classToString
 
 def _get_image_blob(im):
   """Converts an image into a network input.
@@ -105,6 +107,25 @@ def im_detect(sess, net, im):
     pred_boxes = np.tile(boxes, (1, scores.shape[1]))
 
   return scores, pred_boxes
+
+def im_detect_idn(sess, net, im):
+  blobs, im_scales = _get_blobs(im)
+  assert len(im_scales) == 1, "Only single-image batch implemented"
+
+  im_blob = blobs['data']
+  blobs['im_info'] = np.array([im_blob.shape[1], im_blob.shape[2], im_scales[0]], dtype=np.float32)
+
+  input_boxes, input_clss, num_patch, pIOU, idn_sim_feat, dpp_quality = \
+    net.test_image_idn(sess, blobs['data'], blobs['im_info'])
+
+  blobs['input_boxes'] = input_boxes
+  blobs['input_clss'] = input_clss
+  blobs['num_patch'] = num_patch
+  blobs['idn_sim_feat'] = idn_sim_feat
+  blobs['pIOU'] = pIOU
+  blobs['dpp_quality'] = dpp_quality
+
+  return blobs
 
 def apply_nms(all_boxes, thresh):
   """Apply non-maximum suppression to all predicted boxes output by the
@@ -191,3 +212,83 @@ def test_net(sess, net, imdb, weights_filename, max_per_image=100, thresh=0.):
   print('Evaluating detections')
   imdb.evaluate_detections(all_boxes, output_dir)
 
+
+def test_idn(sess, net, imdb, weights_filename, max_per_image=100, thresh=-4.0, sim_thresh=0.7):
+  np.random.seed(cfg.RNG_SEED)
+  """Test a Fast R-CNN network on an image database."""
+  num_images = len(imdb.image_index)
+  # all detections are collected into:
+  #  all_boxes[cls][image] = N x 5 array of detections in
+  #  (x1, y1, x2, y2, score)
+  all_boxes = [[[] for _ in range(num_images)]
+         for _ in range(imdb.num_classes)]
+
+  output_dir = get_output_dir(imdb, weights_filename)
+  # timers
+  _t = {'im_detect' : Timer(), 'misc' : Timer()}
+
+  for i in range(num_images):
+    im = cv2.imread(imdb.image_path_at(i))
+
+    _t['im_detect'].tic()
+    blobs_out = im_detect_idn(sess, net, im)
+    _t['im_detect'].toc()
+    if blobs_out['num_patch'][0] > 0:
+      im_info = blobs_out['im_info']
+      pred_boxes = blobs_out['input_boxes'][:,1:]/im_info[2]
+      pred_clss = blobs_out['input_clss'].astype(np.int32)
+      pred_scores = blobs_out['dpp_quality']
+
+      input_index = range(len(pred_boxes))
+      ara = (pred_boxes[:, 3] - pred_boxes[:, 1]) * (pred_boxes[:, 2] - pred_boxes[:, 0])
+
+      # Remove too small patches
+      if len(np.where(ara <= 100)[0]) > 0:
+          [input_index.remove(jj) for jj in np.where(ara <= 100)[0]]
+          pred_boxes = pred_boxes[input_index]
+          pred_scores = pred_scores[input_index]
+          pred_clss = pred_clss[input_index]
+
+      pIOU = blobs_out['pIOU']
+      pIOU[np.where(pIOU < 0.4)] = 0
+      idn_sim_feat = blobs_out['idn_sim_feat']
+
+      idn_sim_feat = preprocessing.normalize(idn_sim_feat, norm='l2')
+
+      _t['misc'].tic()
+
+      # skip j = 0, because it's the background class
+      for j in range(1, imdb.num_classes):
+        inds = np.where(np.squeeze(pred_clss) == j)[0]
+        cls_scores = pred_scores[inds]
+        cls_boxes = pred_boxes[inds]
+        cls_dets = np.hstack((cls_boxes, cls_scores[:, np.newaxis])) \
+          .astype(np.float32, copy=False)
+        S_sim = np.matmul(idn_sim_feat[inds], idn_sim_feat[inds].T)
+        keep = []
+        if len(S_sim)>0:
+          keep = dpp_infer(S_sim, pred_scores[inds], pIOU[inds, :][:, inds], sim_thresh, thresh)
+        cls_dets = cls_dets[keep, :]
+        all_boxes[j][i] = cls_dets
+
+      # Limit to max_per_image detections *over all classes*
+      if max_per_image > 0:
+        image_scores = np.hstack([all_boxes[j][i][:, -1]
+                                  for j in range(1, imdb.num_classes)])
+        if len(image_scores) > max_per_image:
+          image_thresh = np.sort(image_scores)[-max_per_image]
+          for j in range(1, imdb.num_classes):
+            keep = np.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
+            all_boxes[j][i] = all_boxes[j][i][keep, :]
+    _t['misc'].toc()
+
+    print('im_detect: {:d}/{:d} {:.3f}s {:.3f}s' \
+        .format(i + 1, num_images, _t['im_detect'].average_time,
+            _t['misc'].average_time))
+
+  det_file = os.path.join(output_dir, 'detections.pkl')
+  with open(det_file, 'wb') as f:
+    pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
+
+  print('Evaluating detections')
+  imdb.evaluate_detections(all_boxes, output_dir)

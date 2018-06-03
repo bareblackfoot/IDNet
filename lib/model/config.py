@@ -101,7 +101,7 @@ __C.TRAIN.BBOX_REG = True
 __C.TRAIN.BBOX_THRESH = 0.5
 
 # Iterations between snapshots
-__C.TRAIN.SNAPSHOT_ITERS = 5000
+__C.TRAIN.SNAPSHOT_ITERS = 10000
 
 # solver.prototxt specifies the snapshot path prefix, this adds an optional
 # infix to yield the path: <prefix>[_<infix>]_iters_XYZ.caffemodel
@@ -375,7 +375,7 @@ def cfg_from_file(filename):
 def cfg_from_list(cfg_list):
   """Set config keys via list (e.g., from command line)."""
   from ast import literal_eval
-  assert len(cfg_list) % 2 == 0
+  # assert len(cfg_list) % 2 == 0
   for k, v in zip(cfg_list[0::2], cfg_list[1::2]):
     key_list = k.split('.')
     d = __C

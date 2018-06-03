@@ -8,7 +8,7 @@ from __future__ import division
 from __future__ import print_function
 
 import _init_paths
-from model.test import test_net
+from model.test import test_net, test_idn
 from model.config import cfg, cfg_from_file, cfg_from_list
 from datasets.factory import get_imdb
 import argparse
@@ -126,6 +126,10 @@ if __name__ == '__main__':
     sess.run(tf.global_variables_initializer())
     print('Loaded.')
 
-  test_net(sess, net, imdb, filename, max_per_image=args.max_per_image)
+  if args.test == 'DPP':
+    test_idn(sess, net, imdb, filename, max_per_image=args.max_per_image, thresh=args.thresh, sim_thresh=args.sim_thresh)
+  elif args.test == 'NMS':
+    test_net(sess, net, imdb, filename, max_per_image=args.max_per_image)
+
 
   sess.close()

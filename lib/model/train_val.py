@@ -149,10 +149,13 @@ class SolverWrapper(object):
             final_gvs.append((grad, var))
         train_op = self.optimizer.apply_gradients(final_gvs)
       else:
-        train_op = self.optimizer.apply_gradients(gvs)
+        # train_op = self.optimizer.apply_gradients(gvs)
+        idn_gradients, idn_variables = zip(*self.optimizer.compute_gradients(loss))
+        idn_gradients, _ = tf.clip_by_global_norm(idn_gradients, 1.)
+        train_op = self.optimizer.apply_gradients(zip(idn_gradients, idn_variables))
 
-      # We will handle the snapshots ourselves
-      self.saver = tf.train.Saver(max_to_keep=100000)
+      # We will handle the snapshots ourselves/
+      self.saver = tf.train.Saver(max_to_keep=5)
       # Write the train and validation information to tensorboard
       self.writer = tf.summary.FileWriter(self.tbdir, sess.graph)
       self.valwriter = tf.summary.FileWriter(self.tbvaldir)
@@ -318,7 +321,7 @@ class SolverWrapper(object):
           print(' >>> rescoring_loss: %.6f' % (out_blob['rescoring_loss']))
           print(' >>> rpn_loss_cls: %.6f\n >>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f' %
                 (out_blob['rpn_loss_cls'], out_blob['rpn_loss_box'], out_blob['loss_cls'], out_blob['loss_box']))
-        else:
+        elif self.frcnn_training:
           print(' >>> rpn_loss_cls: %.6f\n >>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f' %
                 (out_blob['rpn_loss_cls'], out_blob['rpn_loss_box'], out_blob['loss_cls'], out_blob['loss_box']))
         print (' >>> lr: %f' % (lr.eval()))

@@ -332,24 +332,24 @@ class Network(object):
 
     # LOSS 2 : Increase score of the exact one probable bounding box for each object .
     #          And decrease the score of all subsets of bounding boxes that consist of bad bounding boxes.
-    denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
-    nom = tf.reduce_prod(tf.gather(quality, dppLabel))*\
-                tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + cfg.EPSILON*tf.eye(tf.size(L[0])), dppLabel)),dppLabel)))))
-    pos_loss = -tf.log(nom) + tf.log(denom)
-    n_nom = tf.reduce_prod(tf.gather(quality, negDppLabel)) * \
-                  tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + tf.eye(tf.size(L[0])), negDppLabel)), negDppLabel)))))
-    neg_loss = -tf.log(n_nom) + tf.log(denom)
-    loss = pos_loss - neg_loss
-    except_loss = tf.square(tf.reduce_prod(
-        tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), dppLabel)), dppLabel)))))
+    # denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
+    # nom = tf.reduce_prod(tf.gather(quality, dppLabel))*\
+    #             tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + cfg.EPSILON*tf.eye(tf.size(L[0])), dppLabel)),dppLabel)))))
+    # pos_loss = -tf.log(nom) + tf.log(denom)
+    # n_nom = tf.reduce_prod(tf.gather(quality, negDppLabel)) * \
+    #               tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + tf.eye(tf.size(L[0])), negDppLabel)), negDppLabel)))))
+    # neg_loss = -tf.log(n_nom) + tf.log(denom)
+    # loss = pos_loss - neg_loss
+    # except_loss = tf.square(tf.reduce_prod(
+    #     tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), dppLabel)), dppLabel)))))
 
     # LOSS 3 : Decrease the score of subsets that contain at least one bad bounding boxes. (The most mathematically probable form!)
-    # denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
-    # p_nom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L+tf.eye(tf.size(L[0])),posDppLabel)),posDppLabel)))))
-    # pos_loss = -tf.log(p_nom) + tf.log(denom)
-    # loss = pos_loss
-    # except_loss = tf.log(tf.square(tf.reduce_prod(
-    #     tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), posDppLabel)), posDppLabel))))))
+    denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
+    p_nom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L+tf.eye(tf.size(L[0])),posDppLabel)),posDppLabel)))))
+    pos_loss = -tf.log(p_nom) + tf.log(denom)
+    loss = pos_loss
+    except_loss = tf.log(tf.square(tf.reduce_prod(
+        tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), posDppLabel)), posDppLabel))))))
     #
     # Give temporary loss
     loss = tf.cond(tf.is_nan(loss) | tf.is_inf(loss),
@@ -839,6 +839,21 @@ class Network(object):
                                                      self._predictions['rois']],
                                                     feed_dict=feed_dict)
     return cls_score, cls_prob, bbox_pred, rois
+
+  # only useful during testing mode
+  def test_image_idn(self, sess, image, im_info):
+    feed_dict = {self._image: image,
+                 self._im_info: im_info}
+    input_boxes, input_clss, num_patch, pIOU, idn_feat_sim, dpp_quality, mask = sess.run(
+                                                    [self._idn_values["input_boxes"],
+                                                     self._idn_values['input_clss'],
+                                                     self._idn_values['num_patch'],
+                                                     self._idn_values['pIOU'],
+                                                     self._predictions['idn_feat_sim'],
+                                                     self._predictions['dpp_quality'],
+                                                     self._idn_values['mask']],
+                                                    feed_dict=feed_dict)
+    return input_boxes, input_clss, num_patch, pIOU, idn_feat_sim, dpp_quality[mask]
 
   def get_summary(self, sess, blobs):
     feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],

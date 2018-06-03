@@ -51,19 +51,19 @@ case ${DATASET} in
     ;;
 esac
 
-LOG="experiments/logs/${NET}_${TRAIN_IMDB}_${EXTRA_ARGS_SLUG}_${NET}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
-exec &> >(tee -a "$LOG")
-echo Logging output to "$LOG"
-
 set +x
 if [[ ! -z  ${EXTRA_ARGS_SLUG}  ]]; then
+LOG="experiments/logs/${NET}_${TRAIN_IMDB}_${EXTRA_ARGS_SLUG}_${NET}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
   NET_FINAL=output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/${NET}_faster_rcnn_iter_${ITERS2}.ckpt
   TAG=${EXTRA_ARGS_SLUG}
 else
+LOG="experiments/logs/${NET}_${TRAIN_IMDB}_${NET}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
   NET_FINAL=output/${NET}/${TRAIN_IMDB}/default/${NET}_faster_rcnn_iter_${ITERS2}.ckpt
   TAG="default"
 fi
 set -x
+exec &> >(tee -a "$LOG")
+echo Logging output to "$LOG"
 OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_net.py \
   --weight data/imagenet_weights/${NET}.ckpt \
   --imdb ${TRAIN_IMDB} \
