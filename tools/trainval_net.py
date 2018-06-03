@@ -28,15 +28,15 @@ import os
 
 def parse_args():
   """
-  Parse input arguments/home/blackfoot/git/idnet/data/imagenet_weights/vgg16.ckpt
+  Parse input arguments
   """
   parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
   parser.add_argument('--cfg', dest='cfg_file',
                       help='optional config file',
-                      default="/home/blackfoot/git/idnet/experiments/cfgs/vgg16.yml", type=str)
+                      default="experiments/cfgs/vgg16.yml", type=str)
   parser.add_argument('--weight', dest='weight',
                       help='initialize with pretrained model weights',
-                      default="/home/blackfoot/git/idnet/output/vgg16/voc_2007_trainval/default/vgg16_faster_rcnn_iter_60000.ckpt",
+                      default="data/imagenet_weights/vgg16.ckpt",
                       type=str)
   parser.add_argument('--imdb', dest='imdb_name',
                       help='dataset to train on',
