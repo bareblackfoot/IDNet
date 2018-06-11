@@ -13,13 +13,15 @@ __C = edict()
 #   from fast_rcnn_config import cfg
 cfg = __C
 
-#IDN o
+#IDNet
 __C.EPSILON = 0.001
 
 #
 # Training options
 #
 __C.TRAIN = edict()
+
+#IDNet
 __C.TRAIN.SIM_VAR = 10.
 __C.TRAIN.NUM_SIM_TARGET_BOXES = 100
 __C.TRAIN.QUAL_TOPN = 5
@@ -260,7 +262,7 @@ __C.MOBILENET.DEPTH_MULTIPLIER = 1.
 __C.PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
 
 # For reproducibility
-__C.RNG_SEED = 3
+__C.RNG_SEED = 4
 
 # Root directory of project
 __C.ROOT_DIR = osp.abspath(osp.join(osp.dirname(__file__), '..', '..'))

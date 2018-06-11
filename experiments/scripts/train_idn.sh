@@ -80,7 +80,7 @@ OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_ne
   --imdb ${TRAIN_IMDB} \
   --imdbval ${TEST_IMDB} \
   --iters ${ITERS1} \
-  --cfg experiments/cfgs/${NET}_idn.yml \
+  --cfg experiments/cfgs/${NET}_idn_${DATASET}.yml \
   --mode "QUAL" \
   --net ${NET} \
   --tag ${TAG} \
@@ -92,7 +92,7 @@ OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_ne
   --imdb ${TRAIN_IMDB} \
   --imdbval ${TEST_IMDB} \
   --iters ${ITERS2} \
-  --cfg experiments/cfgs/${NET}_idn.yml \
+  --cfg experiments/cfgs/${NET}_idn_${DATASET}.yml \
   --mode "SIM" \
   --net ${NET} \
   --tag ${TAG} \

@@ -63,7 +63,7 @@ echo Logging output to "$LOG"
 OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/test_net.py \
 --imdb ${TEST_IMDB} \
 --model ${NET_FINAL} \
---cfg experiments/cfgs/${NET}_idn.yml \
+--cfg experiments/cfgs/${NET}.yml \
 --net ${NET} \
 --test "DPP" \
 --thresh ${THRESH} \
