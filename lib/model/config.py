@@ -262,7 +262,7 @@ __C.MOBILENET.DEPTH_MULTIPLIER = 1.
 __C.PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
 
 # For reproducibility
-__C.RNG_SEED = 4
+__C.RNG_SEED = 3
 
 # Root directory of project
 __C.ROOT_DIR = osp.abspath(osp.join(osp.dirname(__file__), '..', '..'))
