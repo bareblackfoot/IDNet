@@ -274,7 +274,7 @@ class Network(object):
                                                                                       rois,
                                                                                       "idn")
 
-          idn_feat_sim = self._divnet(idn_net_conv, input_boxes, clss,False)
+          idn_feat_sim = self._divnet(idn_net_conv, input_boxes, clss, False)
           self._predictions["idn_feat_sim"] = idn_feat_sim
 
         elif self.quality_training:
@@ -284,7 +284,7 @@ class Network(object):
                                                                                       self._predictions['rois'],
                                                                                       "idn")
 
-          idn_feat_qual = self._divnet(idn_net_conv, input_boxes, clss,True)
+          idn_feat_qual = self._divnet(idn_net_conv, input_boxes, clss, True)
           self._predictions["idn_feat_qual"] = idn_feat_qual
 
         elif self.similarity_training:

@@ -52,13 +52,13 @@ class resnetv1(Network):
     self._scope = 'resnet_v1_%d' % num_layers
     self._decide_blocks()
 
-  def _crop_pool_layer(self, bottom, rois, name):
+  def _crop_pool_layer(self, bottom, rois, pre_pool_size, feat_stride, name):
     with tf.variable_scope(name) as scope:
       batch_ids = tf.squeeze(tf.slice(rois, [0, 0], [-1, 1], name="batch_id"), [1])
       # Get the normalized coordinates of bboxes
       bottom_shape = tf.shape(bottom)
-      height = (tf.to_float(bottom_shape[1]) - 1.) * np.float32(self._feat_stride[0])
-      width = (tf.to_float(bottom_shape[2]) - 1.) * np.float32(self._feat_stride[0])
+      height = (tf.to_float(bottom_shape[1]) - 1.) * np.float32(feat_stride) #self._feat_stride[0])
+      width = (tf.to_float(bottom_shape[2]) - 1.) * np.float32(feat_stride) #self._feat_stride[0])
       x1 = tf.slice(rois, [0, 1], [-1, 1], name="x1") / width
       y1 = tf.slice(rois, [0, 2], [-1, 1], name="y1") / height
       x2 = tf.slice(rois, [0, 3], [-1, 1], name="x2") / width
@@ -66,12 +66,12 @@ class resnetv1(Network):
       # Won't be back-propagated to rois anyway, but to save time
       bboxes = tf.stop_gradient(tf.concat([y1, x1, y2, x2], 1))
       if cfg.RESNET.MAX_POOL:
-        pre_pool_size = cfg.POOLING_SIZE * 2
+        pre_pool_size = pre_pool_size * 2 #cfg.POOLING_SIZE * 2
         crops = tf.image.crop_and_resize(bottom, bboxes, tf.to_int32(batch_ids), [pre_pool_size, pre_pool_size],
                                          name="crops")
         crops = slim.max_pool2d(crops, [2, 2], padding='SAME')
       else:
-        crops = tf.image.crop_and_resize(bottom, bboxes, tf.to_int32(batch_ids), [cfg.POOLING_SIZE, cfg.POOLING_SIZE],
+        crops = tf.image.crop_and_resize(bottom, bboxes, tf.to_int32(batch_ids), [pre_pool_size, pre_pool_size],
                                          name="crops")
     return crops
 
@@ -98,6 +98,7 @@ class resnetv1(Network):
                                            include_root_block=False,
                                            reuse=reuse,
                                            scope=self._scope)
+    test = net_conv
     if cfg.RESNET.FIXED_BLOCKS < 3:
       with slim.arg_scope(resnet_arg_scope(is_training=is_training)):
         net_conv, _ = resnet_v1.resnet_v1(net_conv,
@@ -110,7 +111,7 @@ class resnetv1(Network):
     self._act_summaries.append(net_conv)
     self._layers['head'] = net_conv
 
-    return net_conv
+    return net_conv, test
 
   def _head_to_tail(self, pool5, is_training, reuse=None):
     with slim.arg_scope(resnet_arg_scope(is_training=is_training)):
