@@ -245,6 +245,8 @@ class Network(object):
       initializer_bbox = tf.random_normal_initializer(mean=0.0, stddev=0.001)
 
     net_conv, idn_net_conv = self._image_to_head(self.frcnn_training or self.quality_training)
+    self.debug_net_conv = net_conv
+    self.debug_idn_net_conv = idn_net_conv
     with tf.variable_scope(self._scope, self._scope):
       # build the anchors for the image
       self._anchor_component()
@@ -253,9 +255,9 @@ class Network(object):
       # region of interest pooling
       if cfg.POOLING_MODE == 'crop':
         pool5 = self._crop_pool_layer(net_conv, rois, 7, 16, "pool5")
+        # pool5 = self._crop_pool_layer(net_conv, rois, "pool5")
       else:
         raise NotImplementedError
-
     fc7 = self._head_to_tail(pool5, self.frcnn_training or self.quality_training)
     with tf.variable_scope(self._scope, self._scope):
       # region classification
@@ -700,15 +702,15 @@ class Network(object):
       net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3],
                         trainable=is_training, scope='conv2', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
       net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
-      net = slim.repeat(net, 3, slim.conv2d, 128, [3, 3],
+      self.debug = net = slim.repeat(net, 3, slim.conv2d, 128, [3, 3],
                         trainable=is_training, scope='conv3', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
       net = self._crop_pool_layer(net, input_boxes, 15, 8, "pool")
       net_flat = slim.flatten(net, scope='flatten')
       fc6 = slim.fully_connected(net_flat, 1000, scope='fc1', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training}, trainable=is_training)
-      add_info = tf.concat([input_boxes, clss],1)
+      add_info = tf.concat([input_boxes, clss], 1)
       net_concat = tf.concat([fc6, add_info], 1)
       fc7 = slim.fully_connected(net_concat, 1000, scope='fc2', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training}, trainable=is_training)
-      idn_feat_sim = slim.fully_connected(fc7, 256, scope='idn_feat_sim',activation_fn=None, trainable=is_training)
+      idn_feat_sim = slim.fully_connected(fc7, 256, scope='idn_feat_sim', activation_fn=None, trainable=is_training)
     return idn_feat_sim
 
   def create_architecture(self, mode, num_classes, tag=None,

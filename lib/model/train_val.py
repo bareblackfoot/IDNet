@@ -257,6 +257,17 @@ class SolverWrapper(object):
     # Construct the computation graph
     lr, train_op = self.construct_graph(sess, mode)
 
+    total_parameters = 0
+    for variable in tf.all_variables():
+      if "BatchNorm" not in variable.name:
+        shape = variable.get_shape()
+        variable_parameters = 1
+        for dim in shape:
+          variable_parameters *= dim.value
+        total_parameters += variable_parameters
+
+    print('Total params: %.2fM' % (total_parameters / 1000000.0))
+
     # Find previous snapshots if there is any to restore from
     lsf, nfiles, sfiles = self.find_previous()
 

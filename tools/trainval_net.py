@@ -22,9 +22,9 @@ from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
 from nets.mobilenet_v1 import mobilenetv1
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# os.environ["OMP_NUM_THREADS"] = "1"
+# os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def parse_args():
   """
@@ -33,10 +33,10 @@ def parse_args():
   parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
   parser.add_argument('--cfg', dest='cfg_file',
                       help='optional config file',
-                      default="/home/blackfoot/git/IDNet/experiments/cfgs/res50.yml", type=str)
+                      default="", type=str)
   parser.add_argument('--weight', dest='weight',
                       help='initialize with pretrained model weights',
-                      default="/home/blackfoot/git/IDNet/data/imagenet_weights/resnet_v1_50.ckpt",
+                      default="",
                       type=str)
   parser.add_argument('--imdb', dest='imdb_name',
                       help='dataset to train on',
@@ -60,9 +60,9 @@ def parse_args():
                       help='set config keys', default=None,
                       nargs=argparse.REMAINDER)
 
-  # if len(sys.argv) == 1:
-  #   parser.print_help()
-  #   sys.exit(1)
+  if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
 
   args = parser.parse_args()
   return args

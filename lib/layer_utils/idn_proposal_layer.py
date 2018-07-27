@@ -10,7 +10,7 @@ import copy
 
 def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
     input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, posDppLabel = \
-        _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.7, top_n=cfg.TRAIN.QUAL_TOPN, scores_thresh=0.05)
+        _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.7, top_n=cfg.TRAIN.QUAL_TOPN, scores_thresh=0.01)
 
     input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
     negDppLabel = np.where((np.max(gt_overlaps, 0) < 0.5))[0]
