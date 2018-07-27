@@ -6,8 +6,8 @@ The current code supports **VGG16** model.
 
 With VGG16 (``conv5_3``):
   - Train on VOC 2007 trainval and test on VOC 2007 test, **72.2**.
-  - Train on VOC 2007+2012 trainval and test on VOC 2007 test ([R-FCN](https://github.com/daijifeng001/R-FCN) schedule), **76.8**.
-  - Train on COCO 2014 [train set](https://github.com/rbgirshick/py-faster-rcnn/tree/master/models) and test on [validation set](https://github.com/rbgirshick/py-faster-rcnn/tree/master/models), **27.3**.
+  - Train on VOC 2007+2012 trainval and test on VOC 2007 test, **76.8**.
+  - Train on COCO 2014 train set and test on validation set, **27.3**.
 
 ### Prerequisites
   - A basic Tensorflow installation. The code follows **r1.2** format. If you are using r1.0, please check out the r1.0 branch to fix the slim Resnet block issue. If you are using an older version (r0.1-r0.12), please check out the r0.12 branch. While it is not required, for experimenting the original RoI pooling (which requires modification of the C++ code in tensorflow), you can check out my tensorflow [fork](https://github.com/endernewton/tensorflow) and look for ``tf.image.roi_pooling``.
