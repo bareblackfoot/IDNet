@@ -5,9 +5,9 @@ A Tensorflow implementation of [IDNet](https://arxiv.org/pdf/1805.10765.pdf) by 
 The current code supports **VGG16** model.
 
 With VGG16 (``conv5_3``):
-  - Train on VOC 2007 trainval and test on VOC 2007 test, **70.8**.
-  - Train on VOC 2007+2012 trainval and test on VOC 2007 test ([R-FCN](https://github.com/daijifeng001/R-FCN) schedule), **75.7**.
-  - Train on COCO 2014 [trainval35k](https://github.com/rbgirshick/py-faster-rcnn/tree/master/models) and test on [val](https://github.com/rbgirshick/py-faster-rcnn/tree/master/models) (*Iterations*: 900k/1190k), **30.2**.
+  - Train on VOC 2007 trainval and test on VOC 2007 test, **72.2**.
+  - Train on VOC 2007+2012 trainval and test on VOC 2007 test ([R-FCN](https://github.com/daijifeng001/R-FCN) schedule), **76.8**.
+  - Train on COCO 2014 [train set](https://github.com/rbgirshick/py-faster-rcnn/tree/master/models) and test on [validation set](https://github.com/rbgirshick/py-faster-rcnn/tree/master/models), **27.3**.
 
 ### Prerequisites
   - A basic Tensorflow installation. The code follows **r1.2** format. If you are using r1.0, please check out the r1.0 branch to fix the slim Resnet block issue. If you are using an older version (r0.1-r0.12), please check out the r0.12 branch. While it is not required, for experimenting the original RoI pooling (which requires modification of the C++ code in tensorflow), you can check out my tensorflow [fork](https://github.com/endernewton/tensorflow) and look for ``tf.image.roi_pooling``.
@@ -17,7 +17,7 @@ With VGG16 (``conv5_3``):
 ### Installation
 1. Clone the repository
   ```Shell
-  git clone https://github.com/endernewton/tf-faster-rcnn.git
+  git clone https://github.com/bareblackfoot/IDNet.git
   ```
 
 2. Update your -arch in setup script to match your GPU
@@ -62,16 +62,14 @@ If you find it useful, the ``data/cache`` folder created on my side is also shar
 ### Demo and Test with pre-trained models
 1. Download pre-trained model
   ```Shell
-  # Resnet101 for voc pre-trained on 07+12 set
-  ./data/scripts/fetch_faster_rcnn_models.sh
+  ./data/scripts/fetch_idn_models.sh
   ```
   **Note**: if you cannot download the models through the link, or you want to try more models, you can check out the following solutions and optionally update the downloading script:
-  - Another server [here](http://xinlei.sp.cs.cmu.edu/xinleic/tf-faster-rcnn/).
-  - Google drive [here](https://drive.google.com/open?id=0B1_fAEgxdnvJSmF3YUlZcHFqWTQ).
+  - Onedrive [here]().
 
 2. Create a folder and a soft link to use the pre-trained model
   ```Shell
-  NET=res101
+  NET=vgg16
   TRAIN_IMDB=voc_2007_trainval+voc_2012_trainval
   mkdir -p output/${NET}/${TRAIN_IMDB}
   cd output/${NET}/${TRAIN_IMDB}
@@ -87,10 +85,10 @@ If you find it useful, the ``data/cache`` folder created on my side is also shar
   ```
   **Note**: Resnet101 testing probably requires several gigabytes of memory, so if you encounter memory capacity issues, please install it with CPU support only. Refer to [Issue 25](https://github.com/endernewton/tf-faster-rcnn/issues/25).
 
-4. Test with pre-trained Resnet101 models
+4. Test with pre-trained vgg16 models
   ```Shell
   GPU_ID=0
-  ./experiments/scripts/test_faster_rcnn.sh $GPU_ID pascal_voc_0712 res101
+  ./experiments/scripts/test_idn.sh ${GPU_ID} pascal_voc vgg16
   ```
   **Note**: If you cannot get the reported numbers (79.8 on my side), then probably the NMS function is compiled improperly, refer to [Issue 5](https://github.com/endernewton/tf-faster-rcnn/issues/5).
 
@@ -112,25 +110,25 @@ If you find it useful, the ``data/cache`` folder created on my side is also shar
   # NET in {vgg16, res50, res101, res152} is the network arch to use
   # DATASET {pascal_voc, pascal_voc_0712, coco} is defined in train_faster_rcnn.sh
   # Examples:
-  ./experiments/scripts/train_faster_rcnn.sh 0 pascal_voc vgg16
-  ./experiments/scripts/train_faster_rcnn.sh 1 coco res101
+  ./experiments/scripts/train_idn.sh 0 pascal_voc vgg16
+  ./experiments/scripts/train_idn.sh 1 coco vgg16
   ```
   
 3. Visualization with Tensorboard
   ```Shell
   tensorboard --logdir=tensorboard/vgg16/voc_2007_trainval/ --port=7001 &
-  tensorboard --logdir=tensorboard/vgg16/coco_2014_train+coco_2014_valminusminival/ --port=7002 &
+  tensorboard --logdir=tensorboard/vgg16/coco_2014_train/ --port=7002 &
   ```
 
 4. Test and evaluate
   ```Shell
-  ./experiments/scripts/test_faster_rcnn.sh [GPU_ID] [DATASET] [NET]
+  ./experiments/scripts/test_idn.sh [GPU_ID] [DATASET] [NET]
   # GPU_ID is the GPU you want to test on
   # NET in {vgg16, res50, res101, res152} is the network arch to use
   # DATASET {pascal_voc, pascal_voc_0712, coco} is defined in test_faster_rcnn.sh
   # Examples:
-  ./experiments/scripts/test_faster_rcnn.sh 0 pascal_voc vgg16
-  ./experiments/scripts/test_faster_rcnn.sh 1 coco res101
+  ./experiments/scripts/test_idn.sh 0 pascal_voc vgg16
+  ./experiments/scripts/test_idn.sh 1 coco res101
   ```
 
 5. You can use ``tools/reval.sh`` for re-evaluation
@@ -155,7 +153,7 @@ tensorboard/[NET]/[DATASET]/default/
 tensorboard/[NET]/[DATASET]/default_val/
 ```
 
-The default number of training iterations is kept the same to the original faster RCNN for VOC 2007, however I find it is beneficial to train longer (see [report](https://arxiv.org/pdf/1702.02138.pdf) for COCO), probably due to the fact that the image batch size is one. For VOC 07+12 we switch to a 80k/110k schedule following [R-FCN](https://github.com/daijifeng001/R-FCN). Also note that due to the nondeterministic nature of the current implementation, the performance can vary a bit, but in general it should be within ~1% of the reported numbers for VOC, and ~0.2% of the reported numbers for COCO. Suggestions/Contributions are welcome.
+The default number of training iterations is kept the same to the original Faster R-CNN for PASCAL VOC and COCO. 
 
 ### Citation
 If you find this paper helpful, please consider citing:
