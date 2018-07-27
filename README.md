@@ -22,7 +22,7 @@ With VGG16 (``conv5_3``):
 
 2. Update your -arch in setup script to match your GPU
   ```Shell
-  cd tf-faster-rcnn/lib
+  cd IDNet/lib
   # Change the GPU architecture (-arch) if necessary
   vim setup.py
   ```
@@ -61,11 +61,10 @@ If you find it useful, the ``data/cache`` folder created on my side is also shar
 
 ### Demo and Test with pre-trained models
 1. Download pre-trained model
-  ```Shell
-  ./data/scripts/fetch_idn_models.sh
-  ```
-  **Note**: if you cannot download the models through the link, or you want to try more models, you can check out the following solutions and optionally update the downloading script:
-  - Onedrive [here]().
+  - Onedrive 
+  -- COCO [here]().
+  -- VOC07 [here]().
+  -- VOC0712 [here]().
 
 2. Create a folder and a soft link to use the pre-trained model
   ```Shell
