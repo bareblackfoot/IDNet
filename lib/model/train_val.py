@@ -329,7 +329,10 @@ class SolverWrapper(object):
         if sim_train:
           print(' >>> ID_loss: %.6f' % (out_blob['ID_loss']))
         elif qual_train:
-          print(' >>> rescoring_loss: %.6f' % (out_blob['rescoring_loss']))
+          try:
+            print(' >>> SS_loss: %.6f' % (out_blob['SS_loss']))
+          except:
+            pass
           print(' >>> rpn_loss_cls: %.6f\n >>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f' %
                 (out_blob['rpn_loss_cls'], out_blob['rpn_loss_box'], out_blob['loss_cls'], out_blob['loss_box']))
         elif self.frcnn_training:
