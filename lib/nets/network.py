@@ -276,7 +276,7 @@ class Network(object):
                                                                                       rois,
                                                                                       "idn")
 
-          idn_feat_sim = self._divnet(idn_net_conv, input_boxes, clss, False)
+          idn_feat_sim = self._rin(idn_net_conv, input_boxes, clss, False)
           self._predictions["idn_feat_sim"] = idn_feat_sim
 
         elif self.quality_training:
@@ -286,7 +286,7 @@ class Network(object):
                                                                                       self._predictions['rois'],
                                                                                       "idn")
 
-          idn_feat_qual = self._divnet(idn_net_conv, input_boxes, clss, True)
+          idn_feat_qual = self._rin(idn_net_conv, input_boxes, clss, True)
           self._predictions["idn_feat_qual"] = idn_feat_qual
 
         elif self.similarity_training:
@@ -295,7 +295,7 @@ class Network(object):
                                                                                      self._gt_boxes,
                                                                                      self._predictions['rois'],
                                                                                      "idn")
-          idn_feat_sim = self._divnet(idn_net_conv, input_boxes, clss, True)
+          idn_feat_sim = self._rin(idn_net_conv, input_boxes, clss, True)
           self._predictions["idn_feat_sim"] = idn_feat_sim
         self._score_summaries.update(self._predictions)
 
@@ -316,14 +316,14 @@ class Network(object):
     ))
     return loss_box
 
-  def _rescoring_loss(self, idn_feat_sim, pIOU, dppLabel, posDppLabel, negDppLabel, quality):
+  def _SS_loss(self, idn_feat_sim, pIOU, dppLabel, posDppLabel, negDppLabel, quality):
     self.V = V = tf.nn.l2_normalize(idn_feat_sim, 1)
     self.S = S = tf.matmul(V, V, False, True)
     M = tf.shape(V)[0]
     L = tf.sqrt(tf.tile(quality, [1, M])) * (0.6*S + 0.4*pIOU) * tf.sqrt(tf.tile(tf.transpose(quality), [M, 1]))
     L = (L + tf.transpose(L))/2.
 
-    # Rescoring Loss : Decrease the score of subsets that contain at least one bad bounding boxes. (The most mathematically probable form!)
+    # SS Loss : Decrease the score of subsets that contain at least one bad bounding boxes.
     denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
     p_nom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L+tf.eye(tf.size(L[0])),posDppLabel)),posDppLabel)))))
     pos_loss = -tf.log(p_nom) + tf.log(denom)
@@ -404,11 +404,11 @@ class Network(object):
         frcnn_loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
         # IDN, dpp loss
-        rescoring_loss = tf.cond(self._idn_qual_values['idn_train'],
+        SS_loss = tf.cond(self._idn_qual_values['idn_train'],
                 lambda: self.train_func(),
                 lambda: zerof())
-        self._losses['rescoring_loss'] = rescoring_loss
-        loss = rescoring_loss + frcnn_loss
+        self._losses['SS_loss'] = SS_loss
+        loss = SS_loss + frcnn_loss
 
       elif self.similarity_training:
         # IDN, dpp loss
@@ -474,8 +474,8 @@ class Network(object):
     masked_quality = tf.boolean_mask(self._predictions['dpp_quality'], self._idn_qual_values['mask'])
     quality = tf.expand_dims(tf.cond(add_gt, lambda: concat(masked_quality, tf.ones([tf.shape(self._gt_boxes)[0]]) * 4),
                                      lambda: instead(masked_quality)), -1)
-    rescoring_loss = cfg.TRAIN.QUAL_LR * self._rescoring_loss(idn_feat_qual, pIOU, dppLabel, posDppLabel, negDppLabel, quality)
-    return rescoring_loss
+    SS_loss = cfg.TRAIN.QUAL_LR * self._SS_loss(idn_feat_qual, pIOU, dppLabel, posDppLabel, negDppLabel, quality)
+    return SS_loss
 
   def train_sim_func(self):
     idn_feat_sim = self._predictions['idn_feat_sim']
@@ -695,7 +695,7 @@ class Network(object):
   def _head_to_tail(self, pool5, is_training, reuse=None):
     raise NotImplementedError
 
-  def _divnet(self, idn_net_conv, input_boxes,clss, is_training, reuse=None):
+  def _rin(self, idn_net_conv, input_boxes,clss, is_training, reuse=None):
     with tf.variable_scope("idn", "idn", reuse=reuse):
       net = slim.repeat(idn_net_conv, 2, slim.conv2d, 64, [3, 3],
                         trainable=is_training, scope='conv1', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
@@ -866,11 +866,11 @@ class Network(object):
         blob['loss']= loss
 
     elif self.quality_training:
-      rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, rescoring_loss, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
+      rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, SS_loss, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                                           self._losses['rpn_loss_box'],
                                                                                           self._losses['cross_entropy'],
                                                                                           self._losses['loss_box'],
-                                                                                          self._losses["rescoring_loss"],
+                                                                                          self._losses["SS_loss"],
                                                                                           self._losses['total_loss'],
                                                                                           train_op],
                                                                                          feed_dict=feed_dict)
@@ -878,7 +878,7 @@ class Network(object):
       blob['rpn_loss_box']= rpn_loss_box
       blob['loss_cls']= loss_cls
       blob['loss_box']= loss_box
-      blob['rescoring_loss']= rescoring_loss
+      blob['SS_loss']= SS_loss
       blob['loss']= loss
 
     elif self.similarity_training:
@@ -921,11 +921,11 @@ class Network(object):
 
     elif self.quality_training:
         if qual_train:
-              rpn_loss_cls, rpn_loss_box, loss_cls, loss_box,rescoring_loss, loss, summary, _ = sess.run([self._losses["rpn_cross_entropy"],
+              rpn_loss_cls, rpn_loss_box, loss_cls, loss_box,SS_loss, loss, summary, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                                                           self._losses['rpn_loss_box'],
                                                                                                           self._losses['cross_entropy'],
                                                                                                           self._losses['loss_box'],
-                                                                                                          self._losses["rescoring_loss"],
+                                                                                                          self._losses["SS_loss"],
                                                                                                           self._losses['total_loss'],
                                                                                                           self._summary_op,
                                                                                                           train_op],
@@ -934,15 +934,15 @@ class Network(object):
               blob['rpn_loss_box']= rpn_loss_box
               blob['loss_cls']= loss_cls
               blob['loss_box']= loss_box
-              blob['rescoring_loss']= rescoring_loss
+              blob['SS_loss']= SS_loss
               blob['loss']= loss
               blob['summary']= summary
         else:
-            rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, rescoring_loss, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
+            rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, SS_loss, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                                                 self._losses['rpn_loss_box'],
                                                                                                 self._losses['cross_entropy'],
                                                                                                 self._losses['loss_box'],
-                                                                                                self._losses["rescoring_loss"],
+                                                                                                self._losses["SS_loss"],
                                                                                                 self._losses['total_loss'],
                                                                                                 train_op],
                                                                                                feed_dict=feed_dict)
@@ -950,7 +950,7 @@ class Network(object):
             blob['rpn_loss_box'] = rpn_loss_box
             blob['loss_cls'] = loss_cls
             blob['loss_box'] = loss_box
-            blob['rescoring_loss'] = rescoring_loss
+            blob['SS_loss'] = SS_loss
             blob['loss'] = loss
 
     elif self.similarity_training:
