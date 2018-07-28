@@ -13,6 +13,7 @@ TRAIN:
   BBOX_REG: False
   DOUBLE_BIAS: False
   QUAL_TOPN: 10
+  LABEL_LIM: 25
 TEST:
   HAS_RPN: True
 POOLING_MODE: crop

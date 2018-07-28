@@ -9,14 +9,13 @@ from model.config import cfg
 import copy
 
 def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
-    input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, posDppLabel = \
-        _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.7, top_n=cfg.TRAIN.QUAL_TOPN, scores_thresh=0.01)
+    input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, mask, add_gt, posDppLabel = \
+        _roi_preprocessing(scores, box_deltas, gts, rois, im_info, top_n=cfg.TRAIN.QUAL_TOPN, scores_thresh=0.01)
 
     input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
-    negDppLabel = np.where((np.max(gt_overlaps, 0) < 0.5))[0]
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
-    if len(input_boxes)==0 or len(dppLabel)>15:
+    if len(input_boxes) == 0 or len(posDppLabel)>cfg.TRAIN.LABEL_LIM:
         input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
         input_clss = np.zeros((1, 1))
         input_scores = np.zeros((1,))
@@ -27,9 +26,8 @@ def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
     return input_boxes.astype(np.float32, copy=False), input_clss.astype(np.int32, copy=False), \
            input_scores.astype(np.float32, copy=False), pIOU.astype(np.float32, copy=False), \
            clss.astype(np.float32, copy=False), assign_gt_ind.astype(np.int32, copy=False), \
-           num_patch.astype(np.int32, copy=False), dppLabel.astype(np.int32, copy=False), \
-           mask.astype(np.int32, copy=False), add_gt, negDppLabel.astype(np.int32, copy=False), \
-           posDppLabel.astype(np.int32, copy=False)
+           num_patch.astype(np.int32, copy=False), mask.astype(np.int32, copy=False), \
+           add_gt, posDppLabel.astype(np.int32, copy=False)
 
 def idn_sim_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
     input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, _ = \
@@ -75,7 +73,7 @@ def idn_sim_target_layer(gts, im_info, num_clss):
            num_patch.astype(np.int32, copy=False), dppLabel.astype(np.int32, copy=False), \
            intraDppLabel.astype(np.int32, copy=False), clssLabel.astype(np.int32, copy=False)
 
-def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh, top_n, scores_thresh):
+def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, top_n, scores_thresh):
     add_gt = False
     mask = np.zeros(scores.shape)
     boxes = rois[:, 1:5]
@@ -151,9 +149,8 @@ def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh,
     assign_gt_ind = np.argmax(gt_overlaps, 0)
     gt_overlaps_temp = 1/gt_overlaps
     gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
-    dppLabel = linear_sum_assignment(gt_overlaps_temp)[1]
 
-    return input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, pos_label
+    return input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, mask, add_gt, pos_label
 
 def _preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh, top_n, scores_thresh):
     add_gt = False

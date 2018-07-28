@@ -316,7 +316,7 @@ class Network(object):
     ))
     return loss_box
 
-  def _SS_loss(self, idn_feat_sim, pIOU, dppLabel, posDppLabel, negDppLabel, quality):
+  def _SS_loss(self, idn_feat_sim, pIOU, posDppLabel, quality):
     self.V = V = tf.nn.l2_normalize(idn_feat_sim, 1)
     self.S = S = tf.matmul(V, V, False, True)
     M = tf.shape(V)[0]
@@ -466,15 +466,13 @@ class Network(object):
 
   def train_func(self):
     idn_feat_qual = self._predictions['idn_feat_qual']
-    dppLabel = self._idn_qual_values['dppLabel']
     pIOU = self._idn_qual_values['pIOU']
-    negDppLabel = self._idn_qual_values['negDppLabel']
     posDppLabel = self._idn_qual_values['posDppLabel']
     add_gt = self._idn_qual_values['add_gt']
     masked_quality = tf.boolean_mask(self._predictions['dpp_quality'], self._idn_qual_values['mask'])
     quality = tf.expand_dims(tf.cond(add_gt, lambda: concat(masked_quality, tf.ones([tf.shape(self._gt_boxes)[0]]) * 4),
                                      lambda: instead(masked_quality)), -1)
-    SS_loss = cfg.TRAIN.QUAL_LR * self._SS_loss(idn_feat_qual, pIOU, dppLabel, posDppLabel, negDppLabel, quality)
+    SS_loss = cfg.TRAIN.QUAL_LR * self._SS_loss(idn_feat_qual, pIOU, posDppLabel, quality)
     return SS_loss
 
   def train_sim_func(self):
@@ -553,11 +551,11 @@ class Network(object):
     bbox_pred += means
     with tf.variable_scope(name) as scope:
       input_boxes, input_clss, input_scores, pIOU, clss, objects, \
-      idn_train, dppLabel, mask, add_gt, negDppLabel, posDppLabel \
+      idn_train, mask, add_gt, posDppLabel \
         = tf.py_func(idn_qual_proposal_layer,
                      [cls_score, bbox_pred, gts, rois, self._im_info, self._num_classes],
                      [tf.float32, tf.int32, tf.float32, tf.float32, tf.float32, tf.int32,
-                      tf.int32, tf.int32, tf.int32, tf.bool, tf.int32, tf.int32],
+                      tf.int32, tf.int32, tf.bool, tf.int32],
                      name="idn_proposal")
       input_boxes = tf.reshape(input_boxes, [-1, 5], name='input_boxes')
       input_clss = tf.reshape(input_clss, [-1, 1], name='input_clss')
@@ -565,8 +563,6 @@ class Network(object):
       pIOU = tf.reshape(pIOU, [tf.shape(pIOU)[0], tf.shape(pIOU)[1]], name='pIOU')
       idn_train = tf.cast(tf.reshape(idn_train,[]), tf.bool)
       clss = tf.reshape(clss, [-1, self._num_classes], name='clss')
-      dppLabel = tf.reshape(dppLabel, [-1, ], name='dppLabel')
-      negDppLabel = tf.reshape(negDppLabel, [-1, ], name='negDppLabel')
       posDppLabel = tf.reshape(posDppLabel, [-1, ], name='posDppLabel')
       mask = tf.cast(tf.reshape(mask, [tf.shape(mask)[0], self._num_classes], name='mask'), tf.bool)
       self.objects = tf.reshape(objects, [-1], name="objects")
@@ -577,8 +573,6 @@ class Network(object):
     self._idn_qual_values["pIOU"] = pIOU
     self._idn_qual_values["idn_train"] = idn_train
     self._idn_qual_values["clss"] = clss
-    self._idn_qual_values['dppLabel'] = dppLabel
-    self._idn_qual_values['negDppLabel'] = negDppLabel
     self._idn_qual_values['posDppLabel'] = posDppLabel
     self._idn_qual_values['mask'] = mask
     self._idn_qual_values['add_gt'] = add_gt
