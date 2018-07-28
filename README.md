@@ -1,5 +1,5 @@
 # IDNet
-A Tensorflow implementation of IDNet[Learning Instance-Aware Object Detection Using Determinantal Point Processes](https://arxiv.org/pdf/1805.10765.pdf) by Nuri Kim (nuri.kim@cpslab.snu.ac.kr). This repository is based on the tensorflow implementation of Faster R-CNN available [here](https://github.com/endernewton/tf-faster-rcnn). 
+A Tensorflow implementation of IDNet([Learning Instance-Aware Object Detection Using Determinantal Point Processes](https://arxiv.org/pdf/1805.10765.pdf)) by Nuri Kim (nuri.kim@cpslab.snu.ac.kr). This repository is based on the tensorflow implementation of Faster R-CNN available [here](https://github.com/endernewton/tf-faster-rcnn). 
 
 ### Detection Performance
 The current code supports **VGG16** model.
