@@ -20,7 +20,6 @@ import sys
 import tensorflow as tf
 from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
-from nets.mobilenet_v1 import mobilenetv1
 import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # os.environ["OMP_NUM_THREADS"] = "1"
@@ -30,7 +29,7 @@ def parse_args():
   """
   Parse input arguments
   """
-  parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
+  parser = argparse.ArgumentParser(description='Train a IDNet')
   parser.add_argument('--cfg', dest='cfg_file',
                       help='optional config file',
                       default="", type=str)
@@ -54,7 +53,7 @@ def parse_args():
                       help='mode of training [FRCNN, QUAL, SIM]',
                       default="QUAL", type=str)
   parser.add_argument('--net', dest='net',
-                      help='vgg16, res50, res101, res152, mobile',
+                      help='vgg16, res50',
                       default='res50', type=str)
   parser.add_argument('--set', dest='set_cfgs',
                       help='set config keys', default=None,

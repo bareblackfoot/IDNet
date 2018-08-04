@@ -23,13 +23,13 @@ import time
 
 import tensorflow as tf
 from tensorflow.python import pywrap_tensorflow
-from utils.myutils import *
+from utils.myutils import load
+
 
 class SolverWrapper(object):
   """
     A wrapper class for the training process
   """
-
   def __init__(self, sess, network, imdb, roidb, valroidb, output_dir, tbdir, pretrained_model=None):
     self.net = network
     self.imdb = imdb
@@ -124,6 +124,7 @@ class SolverWrapper(object):
       self.similarity_training = mode == 'SIM'
       self.testing_nms = mode == 'NMS'
       self.testing_dpp = mode == 'DPP'
+
       # Build the main computation graph
       layers = self.net.create_architecture(mode, self.imdb.num_classes, tag='default',
                                             anchor_scales=cfg.ANCHOR_SCALES,
@@ -252,13 +253,13 @@ class SolverWrapper(object):
   def train_model(self, sess, max_iters, mode):
     # Build data layers for both training and validation set
     self.data_layer = RoIDataLayer(self.roidb, self.imdb.num_classes)
-    self.data_layer_val = RoIDataLayer(self.valroidb, self.imdb.num_classes, random=True)
+    self.data_layer_val = RoIDataLayer(self.valroidb, self.imdb.num_classes)
 
     # Construct the computation graph
     lr, train_op = self.construct_graph(sess, mode)
 
     total_parameters = 0
-    for variable in tf.all_variables():
+    for variable in tf.global_variables():
       if "BatchNorm" not in variable.name:
         shape = variable.get_shape()
         variable_parameters = 1
@@ -328,14 +329,12 @@ class SolverWrapper(object):
         print ('iter: %d / %d,' % (iter, max_iters))
         if sim_train:
           print(' >>> ID_loss: %.6f' % (out_blob['ID_loss']))
-        elif qual_train:
+        if qual_train:
           try:
             print(' >>> SS_loss: %.6f' % (out_blob['SS_loss']))
           except:
             pass
-          print(' >>> rpn_loss_cls: %.6f\n >>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f' %
-                (out_blob['rpn_loss_cls'], out_blob['rpn_loss_box'], out_blob['loss_cls'], out_blob['loss_box']))
-        elif self.frcnn_training:
+        if self.frcnn_training or self.quality_training:
           print(' >>> rpn_loss_cls: %.6f\n >>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f' %
                 (out_blob['rpn_loss_cls'], out_blob['rpn_loss_box'], out_blob['loss_cls'], out_blob['loss_box']))
         print (' >>> lr: %f' % (lr.eval()))
@@ -376,7 +375,6 @@ def get_training_roidb(imdb):
 
 def filter_roidb(roidb):
   """Remove roidb entries that have no usable RoIs."""
-
   def is_valid(entry):
     # Valid images have:
     #   (1) At least one foreground RoI OR

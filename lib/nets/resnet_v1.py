@@ -90,7 +90,7 @@ class resnetv1(Network):
     # Now the base is always fixed during training
     with slim.arg_scope(resnet_arg_scope(is_training=False)):
       net_conv = self._build_base()
-    test = net_conv
+    idn_net = net_conv
     if cfg.RESNET.FIXED_BLOCKS > 0:
       with slim.arg_scope(resnet_arg_scope(is_training=False)):
         net_conv, _ = resnet_v1.resnet_v1(net_conv,
@@ -111,7 +111,7 @@ class resnetv1(Network):
     self._act_summaries.append(net_conv)
     self._layers['head'] = net_conv
 
-    return net_conv, test
+    return net_conv, idn_net
 
   def _head_to_tail(self, pool5, is_training, reuse=None):
     with slim.arg_scope(resnet_arg_scope(is_training=is_training)):

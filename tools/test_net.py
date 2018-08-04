@@ -18,7 +18,6 @@ import time, os, sys
 import tensorflow as tf
 from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
-from nets.mobilenet_v1 import mobilenetv1
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # os.environ["OMP_NUM_THREADS"] = "1"
 # os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -27,7 +26,7 @@ def parse_args():
   """
   Parse input arguments
   """
-  parser = argparse.ArgumentParser(description='Test a Fast R-CNN network')
+  parser = argparse.ArgumentParser(description='Test a IDNet')
   parser.add_argument('--cfg', dest='cfg_file',
             help='optional config file', default="", type=str)
   parser.add_argument('--model', dest='model',
@@ -51,7 +50,7 @@ def parse_args():
                         help='tag of the model',
                         default='', type=str)
   parser.add_argument('--net', dest='net',
-                      help='vgg16, res50, res101, res152, mobile',
+                      help='vgg16, res50',
                       default='vgg16', type=str)
   parser.add_argument('--test', dest='test',
                       help='NMS or DPP inference',

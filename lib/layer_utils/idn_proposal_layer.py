@@ -1,22 +1,21 @@
 import numpy as np
 from model.bbox_transform import bbox_transform_inv
 from utils.cython_bbox import bbox_overlaps
-# from utils.cython_dpp_bbox import dpp_bbox_overlaps
 from utils.boxTools import *
-from utils.myutils import *
+from utils.myutils import inNd
 from scipy.optimize import linear_sum_assignment
 from model.config import cfg
 import copy
 
+
 def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
-    input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, posDppLabel = \
-        _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.7, top_n=cfg.TRAIN.QUAL_TOPN, scores_thresh=0.01)
+    input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, mask, add_gt, posDppLabel = \
+        _qual_preprocessing(scores, box_deltas, gts, rois, im_info, top_n=cfg.TRAIN.QUAL_TOPN, scores_thresh=0.01)
 
     input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
-    negDppLabel = np.where((np.max(gt_overlaps, 0) < 0.5))[0]
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
-    if len(input_boxes)==0 or len(dppLabel)>15:
+    if len(input_boxes) == 0 or len(posDppLabel) > 200:
         input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
         input_clss = np.zeros((1, 1))
         input_scores = np.zeros((1,))
@@ -26,20 +25,19 @@ def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
 
     return input_boxes.astype(np.float32, copy=False), input_clss.astype(np.int32, copy=False), \
            input_scores.astype(np.float32, copy=False), pIOU.astype(np.float32, copy=False), \
-           clss.astype(np.float32, copy=False), assign_gt_ind.astype(np.int32, copy=False), \
-           num_patch.astype(np.int32, copy=False), dppLabel.astype(np.int32, copy=False), \
-           mask.astype(np.int32, copy=False), add_gt, negDppLabel.astype(np.int32, copy=False), \
-           posDppLabel.astype(np.int32, copy=False)
+           clss.astype(np.float32, copy=False), num_patch.astype(np.int32, copy=False), \
+           mask.astype(np.int32, copy=False), add_gt, posDppLabel.astype(np.int32, copy=False)
+
 
 def idn_sim_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
-    input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, _ = \
-        _preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.7, top_n=(num_clss-1), scores_thresh=0.001)
+    input_boxes, input_scores, input_clss, gt_overlaps, pIOU, dppLabel, add_gt = \
+        _sim_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.7, top_n=(num_clss-1), scores_thresh=0.001)
     intraDppLabel, clssLabel = _idn_intra_label(input_clss, dppLabel)
 
     input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
-    if len(input_boxes)==0 or len(dppLabel)>15:
+    if len(input_boxes) == 0 or len(dppLabel) > cfg.LIM_LABELS:
         input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
         input_clss = np.zeros((1, 1))
         input_scores = np.zeros((1,))
@@ -49,33 +47,12 @@ def idn_sim_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
 
     return input_boxes.astype(np.float32, copy=False), input_clss.astype(np.int32, copy=False), \
            input_scores.astype(np.float32, copy=False), pIOU.astype(np.float32, copy=False), \
-           clss.astype(np.float32, copy=False), assign_gt_ind.astype(np.int32, copy=False), \
-           num_patch.astype(np.int32, copy=False), dppLabel.astype(np.int32, copy=False), \
-           intraDppLabel.astype(np.int32, copy=False), clssLabel.astype(np.int32, copy=False), \
-           mask.astype(np.int32, copy=False), add_gt, \
+           clss.astype(np.float32, copy=False), num_patch.astype(np.int32, copy=False), \
+           dppLabel.astype(np.int32, copy=False), intraDppLabel.astype(np.int32, copy=False), \
+           clssLabel.astype(np.int32, copy=False), add_gt
+# # assign_gt_ind.astype(np.int32, copy=False),
 
-def idn_sim_target_layer(gts, im_info, num_clss):
-    input_boxes, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel = \
-        _gt_preprocessing(gts, im_info)
-    intraDppLabel, clssLabel = _idn_intra_label(input_clss, dppLabel)
-
-    input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
-    clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
-    num_patch = np.array([1])
-    if len(input_boxes)==0 or len(dppLabel)>15:
-        input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
-        input_clss = np.zeros((1, 1))
-        pIOU = np.zeros((1, 1))
-        num_patch = np.array([0])
-        clss = np.zeros((1, num_clss))
-
-    return input_boxes.astype(np.float32, copy=False), input_clss.astype(np.int32, copy=False), \
-           pIOU.astype(np.float32, copy=False), \
-           clss.astype(np.float32, copy=False), assign_gt_ind.astype(np.int32, copy=False), \
-           num_patch.astype(np.int32, copy=False), dppLabel.astype(np.int32, copy=False), \
-           intraDppLabel.astype(np.int32, copy=False), clssLabel.astype(np.int32, copy=False)
-
-def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh, top_n, scores_thresh):
+def _qual_preprocessing(scores, box_deltas, gts, rois, im_info, top_n, scores_thresh):
     add_gt = False
     mask = np.zeros(scores.shape)
     boxes = rois[:, 1:5]
@@ -151,13 +128,12 @@ def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh,
     assign_gt_ind = np.argmax(gt_overlaps, 0)
     gt_overlaps_temp = 1/gt_overlaps
     gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
-    dppLabel = linear_sum_assignment(gt_overlaps_temp)[1]
 
-    return input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, pos_label
+    return input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, mask, add_gt, pos_label
 
-def _preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh, top_n, scores_thresh):
+
+def _sim_preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh, top_n, scores_thresh):
     add_gt = False
-    mask = np.zeros(scores.shape)
     boxes = rois[:, 1:5]
     all_boxes = bbox_transform_inv(boxes, box_deltas)
     all_boxes = _clip_boxes(all_boxes, im_info[:2])
@@ -216,75 +192,16 @@ def _preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh, top
                 input_clss = np.hstack((input_clss, gt_clss))
                 add_gt = True
 
-    index_row = np.where((scores >= scores_thresh))[0][index]
-    index_column = np.where((scores >= scores_thresh))[1][index]
-    mask[:, 1:][index_row, index_column] = 1
-
     gt_overlaps = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
                              np.ascontiguousarray(input_boxes, dtype=np.float))
     pIOU = bbox_overlaps(np.ascontiguousarray(input_boxes, dtype=np.float),
                          np.ascontiguousarray(input_boxes, dtype=np.float))
-    assign_gt_ind = np.argmax(gt_overlaps, 0)
-    gt_overlaps_temp = 1/gt_overlaps
-    gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
-    dppLabel = linear_sum_assignment(gt_overlaps_temp)[1]
-    posDppLabel = np.where((np.max(gt_overlaps, 0) > 0.5))[0]
-
-    return input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, posDppLabel
-
-def _gt_preprocessing(gts, im_info):
-    gt_boxes = gts[:, :4]
-    gt_clss = gts[:, 4].astype(np.int32)
-    num_noise = int(cfg.TRAIN.NUM_SIM_TARGET_BOXES/len(gts))
-
-    noise = []
-    for im_idx in range(len(gt_boxes)):
-        x_sigma = (gt_boxes[im_idx][2] - gt_boxes[im_idx][0]) / cfg.TRAIN.SIM_VAR
-        y_sigma = (gt_boxes[im_idx][3] - gt_boxes[im_idx][1]) / cfg.TRAIN.SIM_VAR
-        x1 = np.random.normal(0, x_sigma, num_noise)
-        x1 = x1 - max(x1)
-        y1 = np.random.normal(0, y_sigma, num_noise)
-        y1 = y1 - max(y1)
-        x2 = np.random.normal(0, x_sigma, num_noise)
-        x2 = x2 - min(x2)
-        y2 = np.random.normal(0, y_sigma, num_noise)
-        y2 = y2 - min(y2)
-        noise.append(np.concatenate([x1, y1, x2, y2]))
-
-    noise = np.reshape(np.stack(noise), [num_noise * len(gt_boxes), 4])
-
-    input_boxes = np.repeat(gt_boxes, num_noise, axis=0) + noise
-    input_clss = np.repeat(gt_clss, num_noise)
-
-    input_boxes = np.vstack((input_boxes, gt_boxes))
-    input_clss = np.hstack((input_clss, gt_clss))
-
-    order = np.arange(len(input_boxes))
-    np.random.shuffle(order)
-    input_boxes = input_boxes[order]
-    input_clss = input_clss[order]
-    inside = np.where((input_boxes[:,0] >= 0.) & (input_boxes[:,1] >= 0.) & (input_boxes[:,2] <= im_info[1]) & (input_boxes[:,3] <= im_info[0]))[0]
-    input_boxes = input_boxes[inside]
-    input_clss = input_clss[inside]
-
-    gt_overlaps = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
-                             np.ascontiguousarray(input_boxes, dtype=np.float))
-    pIOU = bbox_overlaps(np.ascontiguousarray(input_boxes, dtype=np.float),
-                         np.ascontiguousarray(input_boxes, dtype=np.float))
-
-    assign_gt_ind = np.argmax(gt_overlaps, 0)
     gt_overlaps_temp = 1/gt_overlaps
     gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
     dppLabel = linear_sum_assignment(gt_overlaps_temp)[1]
 
-    return input_boxes, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel
+    return input_boxes, input_scores, input_clss, gt_overlaps, pIOU, dppLabel, add_gt
 
-def _idn_label(input_boxes, gts):
-    gt_boxes = gts[:,:4]
-    gt_overlaps = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
-                             np.ascontiguousarray(input_boxes, dtype=np.float))
-
-    return np.argmax(gt_overlaps, 1)
 
 def _idn_intra_label(input_clss, dppLabel):
     intraDppClss = [np.where(input_clss == cls)[0] for cls in np.unique(input_clss) if
@@ -309,6 +226,7 @@ def _idn_intra_label(input_clss, dppLabel):
 
     return intraDppLabel, intraDppClss
 
+
 def idn_proposal_test_layer(scores, box_deltas, rois, im_info, num_clss):
     thresh = 0.0001
     mask = np.zeros(scores.shape)
@@ -320,6 +238,11 @@ def idn_proposal_test_layer(scores, box_deltas, rois, im_info, num_clss):
     high_scores = np.nonzero(scores >= thresh)
     lbl_high_scores = high_scores[1]
     box_high_scores = high_scores[0]
+    while len(box_high_scores)>10000:
+        thresh += 0.0001
+        high_scores = np.nonzero(scores >= thresh)
+        lbl_high_scores = high_scores[1]
+        box_high_scores = high_scores[0]
     input_scores = np.reshape(scores[box_high_scores, lbl_high_scores], (lbl_high_scores.shape[0],))
     all_boxes = all_boxes[:, 4:]
     input_boxes = np.reshape(
@@ -339,7 +262,7 @@ def idn_proposal_test_layer(scores, box_deltas, rois, im_info, num_clss):
     input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
-    if len(input_boxes)==0:
+    if len(input_boxes) == 0:
         input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
         input_clss = np.zeros((1, 1))
         input_scores = np.zeros((1,))
@@ -352,15 +275,12 @@ def idn_proposal_test_layer(scores, box_deltas, rois, im_info, num_clss):
            pIOU.astype(np.float32, copy=False), num_patch.astype(np.int32, copy=False), \
            clss.astype(np.float32, copy=False), mask.astype(np.int32, copy=False)
 
+
 def _clip_boxes(boxes, im_shape):
   """Clip boxes to image boundaries."""
-  # x1 >= 0
   boxes[:, 0::4] = np.maximum(boxes[:, 0::4], 0)
-  # y1 >= 0
   boxes[:, 1::4] = np.maximum(boxes[:, 1::4], 0)
-  # x2 < im_shape[1]
   boxes[:, 2::4] = np.minimum(boxes[:, 2::4], im_shape[1] - 1)
-  # y2 < im_shape[0]
   boxes[:, 3::4] = np.minimum(boxes[:, 3::4], im_shape[0] - 1)
   return boxes
 

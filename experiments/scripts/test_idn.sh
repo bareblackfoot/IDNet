@@ -50,11 +50,11 @@ esac
 
 if [[ ! -z  ${EXTRA_ARGS_SLUG}  ]]; then
   LOG="experiments/logs/test_idn_${NET}_${TRAIN_IMDB}_${EXTRA_ARGS_SLUG}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
-  NET_FINAL=output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/${NET}_faster_rcnn_iter_${ITERS}.ckpt
+  NET_FINAL=output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/${NET}_idnet_iter_${ITERS}.ckpt
   TAG=${EXTRA_ARGS_SLUG}
 else
   LOG="experiments/logs/test_idn_${NET}_${TRAIN_IMDB}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
-  NET_FINAL=output/${NET}/${TRAIN_IMDB}/default/${NET}_faster_rcnn_iter_${ITERS}.ckpt
+  NET_FINAL=output/${NET}/${TRAIN_IMDB}/default/${NET}_idnet_iter_${ITERS}.ckpt
   TAG="default"
 fi
 exec &> >(tee -a "$LOG")

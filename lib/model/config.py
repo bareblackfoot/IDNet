@@ -15,6 +15,10 @@ cfg = __C
 
 #IDNet
 __C.EPSILON = 0.001
+__C.LIM_LABELS = 20
+__C.RIN_CONV1_FILTER = 64
+__C.RIN_CONV2_FILTER = 128
+__C.RIN_CONV3_FILTER = 128
 
 #
 # Training options
@@ -282,7 +286,7 @@ __C.USE_GPU_NMS = True
 # Use an end-to-end tensorflow model.
 # Note: models in E2E tensorflow mode have only been tested in feed-forward mode,
 #       but these models are exportable to other tensorflow instances as GraphDef files.
-__C.USE_E2E_TF = True
+__C.USE_E2E_TF = False
 
 # Default pooling mode, only 'crop' is available
 __C.POOLING_MODE = 'crop'
