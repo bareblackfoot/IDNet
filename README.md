@@ -22,7 +22,6 @@ With VGG16 (``conv5_3``):
 ### Prerequisites
   - A basic Tensorflow installation. The code follows **r1.2** format. If you are using r1.0, please check out the r1.0 branch to fix the slim Resnet block issue. If you are using an older version (r0.1-r0.12), please check out the r0.12 branch. While it is not required, for experimenting the original RoI pooling (which requires modification of the C++ code in tensorflow), you can check out my tensorflow [fork](https://github.com/endernewton/tensorflow) and look for ``tf.image.roi_pooling``.
   - Python packages you might not have: `cython`, `opencv-python`, `easydict` (similar to [py-faster-rcnn](https://github.com/rbgirshick/py-faster-rcnn)). For `easydict` make sure you have the right version. I use 1.6.
-  - Docker users: Since the recent upgrade, the docker image on docker hub (https://hub.docker.com/r/mbuckler/tf-faster-rcnn-deps/) is no longer valid. However, you can still build your own image by using dockerfile located at `docker` folder (cuda 8 version, as it is required by Tensorflow r1.0.) And make sure following Tensorflow installation to install and use nvidia-docker[https://github.com/NVIDIA/nvidia-docker]. Last, after launching the container, you have to build the Cython modules within the running container. 
 
 ### Installation
 1. Clone the repository
@@ -67,8 +66,6 @@ With VGG16 (``conv5_3``):
 ### Setup data
 Please follow the instructions of py-faster-rcnn [here](https://github.com/rbgirshick/py-faster-rcnn#beyond-the-demo-installation-for-training-and-testing-models) to setup VOC and COCO datasets (Part of COCO is done). The steps involve downloading data and optionally creating soft links in the ``data`` folder. Since faster RCNN does not rely on pre-computed proposals, it is safe to ignore the steps that setup proposals.
 
-If you find it useful, the ``data/cache`` folder created on my side is also shared [here](http://ladoga.graphics.cs.cmu.edu/xinleic/tf-faster-rcnn/cache.tgz).
-
 ### Test with pre-trained models
 1. Download pre-trained model
   - Onedrive 
@@ -105,13 +102,13 @@ If you find it useful, the ``data/cache`` folder created on my side is also shar
 
 2. Train (and test, evaluation)
   ```Shell
-  ./experiments/scripts/train_faster_rcnn.sh [GPU_ID] [DATASET] [NET]
+  ./experiments/scripts/train_idnet.sh [GPU_ID] [DATASET] [NET]
   # GPU_ID is the GPU you want to test on
-  # NET in {vgg16, res50, res101, res152} is the network arch to use
-  # DATASET {pascal_voc, pascal_voc_0712, coco} is defined in train_faster_rcnn.sh
+  # NET in {vgg16, res50} is the network arch to use
+  # DATASET {pascal_voc, pascal_voc_0712, coco} is defined in train_idnet.sh
   # Examples:
-  ./experiments/scripts/train_idn.sh 0 pascal_voc vgg16
-  ./experiments/scripts/train_idn.sh 1 coco vgg16
+  ./experiments/scripts/train_idnet.sh 0 pascal_voc vgg16
+  ./experiments/scripts/train_idnet.sh 1 coco vgg16
   ```
   
 3. Visualization with Tensorboard
@@ -124,11 +121,11 @@ If you find it useful, the ``data/cache`` folder created on my side is also shar
   ```Shell
   ./experiments/scripts/test_idn.sh [GPU_ID] [DATASET] [NET]
   # GPU_ID is the GPU you want to test on
-  # NET in {vgg16, res50, res101, res152} is the network arch to use
-  # DATASET {pascal_voc, pascal_voc_0712, coco} is defined in test_faster_rcnn.sh
+  # NET in {vgg16, res50} is the network arch to use
+  # DATASET {pascal_voc, pascal_voc_0712, coco} is defined in test_idnet.sh
   # Examples:
-  ./experiments/scripts/test_idn.sh 0 pascal_voc vgg16
-  ./experiments/scripts/test_idn.sh 1 coco res101
+  ./experiments/scripts/test_idnet.sh 0 pascal_voc vgg16
+  ./experiments/scripts/test_idnet.sh 1 coco res101
   ```
 
 5. You can use ``tools/reval.sh`` for re-evaluation
