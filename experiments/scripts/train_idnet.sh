@@ -98,4 +98,4 @@ OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_ne
   --tag ${TAG} \
   --set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
   TRAIN.STEPSIZE ${STEPSIZE} ${EXTRA_ARGS}
-./experiments/scripts/test_idn.sh $@
+./experiments/scripts/test_idnet.sh $@
