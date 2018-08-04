@@ -1,6 +1,16 @@
 # IDNet
 A Tensorflow implementation of IDNet ([Learning Instance-Aware Object Detection Using Determinantal Point Processes](https://arxiv.org/pdf/1805.10765.pdf)) by Nuri Kim (nuri.kim@cpslab.snu.ac.kr). This repository is based on the tensorflow implementation of Faster R-CNN available [here](https://github.com/endernewton/tf-faster-rcnn). 
 
+### Citation
+If you find this paper helpful, please consider citing:
+    
+    @article{kim2018learning,
+        Author = {Nuri Kim and Donghoon Lee and Songhwai Oh},
+        Title = {Learning Instance-Aware Object Detection Using Determinantal Point Processes},
+        Journal = {arXiv preprint arXiv:1805.10765},
+        Year = {2018}
+    }
+
 ### Detection Performance
 The current code supports **VGG16** model.
 
@@ -59,7 +69,7 @@ Please follow the instructions of py-faster-rcnn [here](https://github.com/rbgir
 
 If you find it useful, the ``data/cache`` folder created on my side is also shared [here](http://ladoga.graphics.cs.cmu.edu/xinleic/tf-faster-rcnn/cache.tgz).
 
-### Demo and Test with pre-trained models
+### Test with pre-trained models
 1. Download pre-trained model
   - Onedrive 
   [COCO](https://mysnu-my.sharepoint.com/:u:/g/personal/blackfoot_seoul_ac_kr/EbNEwAHsDulJpPq98xOqDs0BXfrXaC1k9QjsqjFbJlFImA?e=khRdbe).
@@ -75,15 +85,8 @@ If you find it useful, the ``data/cache`` folder created on my side is also shar
   ln -s ../../../data/voc_2007_trainval+voc_2012_trainval ./default
   cd ../../..
   ```
-
-3. Demo for testing on custom images
-  ```Shell
-  # at repository root
-  GPU_ID=0
-  CUDA_VISIBLE_DEVICES=${GPU_ID} ./tools/demo.py
-  ```
   
-4. Test with pre-trained vgg16 models
+3. Test with pre-trained vgg16 models
   ```Shell
   GPU_ID=0
   ./experiments/scripts/test_idn.sh ${GPU_ID} pascal_voc vgg16
@@ -151,13 +154,3 @@ tensorboard/[NET]/[DATASET]/default_val/
 ```
 
 The default number of training iterations is kept the same to the original Faster R-CNN for PASCAL VOC and COCO. 
-
-### Citation
-If you find this paper helpful, please consider citing:
-    
-    @article{kim2018learning,
-        Author = {Nuri Kim and Donghoon Lee and Songhwai Oh},
-        Title = {Learning Instance-Aware Object Detection Using Determinantal Point Processes},
-        Journal = {arXiv preprint arXiv:1805.10765},
-        Year = {2018}
-    }
