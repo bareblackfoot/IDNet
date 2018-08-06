@@ -253,7 +253,6 @@ class Network(object):
       # region of interest pooling
       if cfg.POOLING_MODE == 'crop':
         pool5 = self._crop_pool_layer(net_conv, rois, 7, 16, "pool5")
-        # pool5 = self._crop_pool_layer(net_conv, rois, "pool5")
       else:
         raise NotImplementedError
     fc7 = self._head_to_tail(pool5, self.frcnn_training or self.quality_training)
@@ -648,24 +647,45 @@ class Network(object):
   def _head_to_tail(self, pool5, is_training, reuse=None):
     raise NotImplementedError
 
-  def _rin(self, idn_net_conv, input_boxes,clss, is_training, reuse=None):
+  @staticmethod
+  def resnet_arg_scope(is_training=True,
+                       batch_norm_decay=0.997,
+                       batch_norm_epsilon=1e-5,
+                       batch_norm_scale=True):
+    batch_norm_params = {
+      'is_training': False,
+      'decay': batch_norm_decay,
+      'epsilon': batch_norm_epsilon,
+      'scale': batch_norm_scale,
+      'trainable': False,
+      'updates_collections': tf.GraphKeys.UPDATE_OPS
+    }
+
+    with arg_scope(
+            [slim.conv2d, slim.fully_connected],
+            weights_regularizer=slim.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY),
+            weights_initializer=slim.variance_scaling_initializer(),
+            trainable=is_training,
+            activation_fn=tf.nn.relu,
+            normalizer_fn=slim.batch_norm,
+            normalizer_params=batch_norm_params):
+      with arg_scope([slim.batch_norm], **batch_norm_params) as arg_sc:
+        return arg_sc
+
+  def _rin(self, idn_net_conv, input_boxes, clss, is_training, reuse=None):
     with tf.variable_scope("idn", "idn", reuse=reuse):
-      net = slim.repeat(idn_net_conv, 2, slim.conv2d, cfg.RIN_CONV1_FILTER, [3, 3], trainable=is_training,
-                        scope='conv1', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
-      net = slim.repeat(net, 2, slim.conv2d, cfg.RIN_CONV2_FILTER, [3, 3], trainable=is_training,
-                        scope='conv2', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
-      net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
-      net = slim.repeat(net, 3, slim.conv2d, cfg.RIN_CONV3_FILTER, [3, 3], trainable=is_training,
-                        scope='conv3', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
-      net = self._crop_pool_layer(net, input_boxes, 15, 8, "pool")
-      net_flat = slim.flatten(net, scope='flatten')
-      fc6 = slim.fully_connected(net_flat, 1000, scope='fc1', normalizer_fn=slim.batch_norm,
-                                 normalizer_params={'trainable': True,'is_training':is_training}, trainable=is_training)
-      add_info = tf.concat([input_boxes, clss], 1)
-      net_concat = tf.concat([fc6, add_info], 1)
-      fc7 = slim.fully_connected(net_concat, 1000, scope='fc2', normalizer_fn=slim.batch_norm,
-                                 normalizer_params={'trainable': True,'is_training':is_training}, trainable=is_training)
-      idn_feat_sim = slim.fully_connected(fc7, 256, scope='idn_feat_sim', activation_fn=None, trainable=is_training)
+      with slim.arg_scope(self.resnet_arg_scope(is_training=is_training)):
+        net = slim.repeat(idn_net_conv, 2, slim.conv2d, cfg.RIN_CONV1_FILTER, [3, 3], scope='conv1')
+        net = slim.repeat(net, 2, slim.conv2d, cfg.RIN_CONV2_FILTER, [3, 3], scope='conv2')
+        net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
+        net = slim.repeat(net, 3, slim.conv2d, cfg.RIN_CONV3_FILTER, [3, 3], scope='conv3')
+        net = self._crop_pool_layer(net, input_boxes, 15, 8, "pool")
+        net_flat = slim.flatten(net, scope='flatten')
+        fc6 = slim.fully_connected(net_flat, 1000, scope='fc1')
+        add_info = tf.concat([input_boxes, clss], 1)
+        net_concat = tf.concat([fc6, add_info], 1)
+        fc7 = slim.fully_connected(net_concat, 1000, scope='fc2')
+        idn_feat_sim = slim.fully_connected(fc7, 256, scope='idn_feat_sim', normalizer_fn=None, activation_fn=None)
     return idn_feat_sim
 
   def create_architecture(self, mode, num_classes, tag=None, anchor_scales=(8, 16, 32), anchor_ratios=(0.5, 1, 2)):
@@ -784,8 +804,7 @@ class Network(object):
     return input_boxes, input_clss, num_patch, pIOU, idn_feat_sim, dpp_quality[mask]
 
   def get_summary(self, sess, blobs):
-    feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
-                 self._gt_boxes: blobs['gt_boxes']}
+    feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'], self._gt_boxes: blobs['gt_boxes']}
     summary = sess.run(self._summary_op_val, feed_dict=feed_dict)
 
     return summary
@@ -907,20 +926,14 @@ class Network(object):
 
     elif self.similarity_training:
         if sim_train:
-            ID_loss, summary, _ = sess.run([self._losses["ID_loss"],
-                                             self._summary_op,
-                                              train_op],
-                                  feed_dict=feed_dict)
+            ID_loss, summary, _ = sess.run([self._losses["ID_loss"], self._summary_op, train_op], feed_dict=feed_dict)
             blob['ID_loss'] = ID_loss
             blob['summary'] = summary
         else:
-            ID_loss, _ = sess.run([self._losses["ID_loss"],
-                                              train_op],
-                                  feed_dict=feed_dict)
+            ID_loss, _ = sess.run([self._losses["ID_loss"], train_op], feed_dict=feed_dict)
             blob['ID_loss'] = ID_loss
 
     return blob, sim_train, qual_train
-
 
   def train_step_no_return(self, sess, blobs, train_op):
     feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],

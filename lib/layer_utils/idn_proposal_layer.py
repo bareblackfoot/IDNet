@@ -15,13 +15,13 @@ def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
     input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
-    if len(input_boxes) == 0 or len(posDppLabel) > 200:
-        input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
-        input_clss = np.zeros((1, 1))
-        input_scores = np.zeros((1,))
-        pIOU = np.zeros((1, 1))
-        num_patch = np.array([0])
-        clss = np.zeros((1, num_clss))
+    # if len(input_boxes) == 0 or len(gts) > cfg.LIM_LABELS: # or len(posDppLabel) > 300
+    #     input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
+    #     input_clss = np.zeros((1, 1))
+    #     input_scores = np.zeros((1,))
+    #     pIOU = np.zeros((1, 1))
+    #     num_patch = np.array([0])
+    #     clss = np.zeros((1, num_clss))
 
     return input_boxes.astype(np.float32, copy=False), input_clss.astype(np.int32, copy=False), \
            input_scores.astype(np.float32, copy=False), pIOU.astype(np.float32, copy=False), \
@@ -50,7 +50,6 @@ def idn_sim_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
            clss.astype(np.float32, copy=False), num_patch.astype(np.int32, copy=False), \
            dppLabel.astype(np.int32, copy=False), intraDppLabel.astype(np.int32, copy=False), \
            clssLabel.astype(np.int32, copy=False), add_gt
-# # assign_gt_ind.astype(np.int32, copy=False),
 
 def _qual_preprocessing(scores, box_deltas, gts, rois, im_info, top_n, scores_thresh):
     add_gt = False
