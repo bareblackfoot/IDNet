@@ -70,7 +70,7 @@ Please follow the instructions of py-faster-rcnn [here](https://github.com/rbgir
 1. Download pre-trained model
   - Onedrive 
   [COCO](https://mysnu-my.sharepoint.com/:u:/g/personal/blackfoot_seoul_ac_kr/EbNEwAHsDulJpPq98xOqDs0BXfrXaC1k9QjsqjFbJlFImA?e=khRdbe),
-  [VOC07](https://mysnu-my.sharepoint.com/:u:/g/personal/blackfoot_seoul_ac_kr/EVQkq2R3HAdOk3V4KVX7pmEB7kBCIX1HYKQNlo_O-3UzXg?e=GjodNh),
+  [VOC07](https://mysnu-my.sharepoint.com/:u:/g/personal/blackfoot_seoul_ac_kr/EVQkq2R3HAdOk3V4KVX7pmEB7kBCIX1HYKQNlo_O-3UzXg?e=HNKMgz),
   [VOC0712](https://mysnu-my.sharepoint.com/:u:/g/personal/blackfoot_seoul_ac_kr/Ediu1LNBHs1ElWjaozh_ShMBledE39LIHjoQB6O5t74xVQ?e=Xg3W2y).
 
 2. Create a folder and a soft link to use the pre-trained model
