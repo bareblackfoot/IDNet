@@ -76,7 +76,7 @@ OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_ne
   --set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
   TRAIN.STEPSIZE ${STEPSIZE} ${EXTRA_ARGS}
 OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_net.py \
-  --weight output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/vgg16_idnet_iter_${ITERS0}.ckpt \
+  --weight output/${NET}/${TRAIN_IMDB}/${TAG}/${NET}_idnet_iter_${ITERS0}.ckpt \
   --imdb ${TRAIN_IMDB} \
   --imdbval ${TEST_IMDB} \
   --iters ${ITERS1} \
@@ -88,7 +88,7 @@ OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_ne
   TRAIN.STEPSIZE ${STEPSIZE} ${EXTRA_ARGS}
 ./experiments/scripts/test_nms.sh $@
 OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_net.py \
-  --weight output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/vgg16_idnet_iter_${ITERS1}.ckpt \
+  --weight output/${NET}/${TRAIN_IMDB}/${TAG}/${NET}_idnet_iter_${ITERS1}.ckpt \
   --imdb ${TRAIN_IMDB} \
   --imdbval ${TEST_IMDB} \
   --iters ${ITERS2} \
