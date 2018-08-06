@@ -86,7 +86,7 @@ Please follow the instructions of py-faster-rcnn [here](https://github.com/rbgir
 3. Test with pre-trained vgg16 models
   ```Shell
   GPU_ID=0
-  ./experiments/scripts/test_idn.sh ${GPU_ID} pascal_voc vgg16
+  ./experiments/scripts/test_idnet.sh ${GPU_ID} pascal_voc vgg16
   ```
 
 ### Train your own model
@@ -119,7 +119,7 @@ Please follow the instructions of py-faster-rcnn [here](https://github.com/rbgir
 
 4. Test and evaluate
   ```Shell
-  ./experiments/scripts/test_idn.sh [GPU_ID] [DATASET] [NET]
+  ./experiments/scripts/test_idnet.sh [GPU_ID] [DATASET] [NET]
   # GPU_ID is the GPU you want to test on
   # NET in {vgg16, res50} is the network arch to use
   # DATASET {pascal_voc, pascal_voc_0712, coco} is defined in test_idnet.sh
