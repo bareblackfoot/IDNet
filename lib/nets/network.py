@@ -13,6 +13,10 @@ from tensorflow.contrib.slim import losses
 from tensorflow.contrib.slim import arg_scope
 
 import numpy as np
+import scipy
+from collections import Counter
+import random
+from copy import deepcopy
 
 from layer_utils.snippets import generate_anchors_pre, generate_anchors_pre_tf
 from layer_utils.proposal_layer import proposal_layer, proposal_layer_tf
@@ -24,6 +28,8 @@ from utils.visualization import draw_bounding_boxes
 from utils.tf_utils import zerof, instead, cbody, mbody, whilef, concat
 
 from model.config import cfg
+from collections import deque
+MEMORY_SIZE = 10
 
 class Network(object):
   def __init__(self):
@@ -34,6 +40,18 @@ class Network(object):
     self._losses = {}
     self._anchor_targets = {}
     self._proposal_targets = {}
+
+    # self._rin_placeholder = {
+    #   "input_boxes": tf.placeholder(tf.float32, [None, 5]),
+    #   "idn_net_conv": tf.placeholder(tf.int32, [None, None])
+    # }
+    self._rin_placeholder = {
+      "feat_cropped": tf.placeholder(tf.float32, [None, 31, 31, 128]),
+      "pIOU": tf.placeholder(tf.float32, [None, None]),
+      "dppLabel": tf.placeholder(tf.int32, [None]),
+      "intraDppLabel": tf.placeholder(tf.int32, [None, None]),
+      "clssLabel": tf.placeholder(tf.int32, [None, None])
+    }
     self._layers = {}
     self._gt_image = None
     self._act_summaries = []
@@ -41,6 +59,7 @@ class Network(object):
     self._train_summaries = []
     self._event_summaries = {}
     self._variables_to_fix = {}
+    self._memory = deque(maxlen=MEMORY_SIZE)
 
   def _add_gt_image(self):
     # add back mean
@@ -245,8 +264,7 @@ class Network(object):
       initializer_bbox = tf.random_normal_initializer(mean=0.0, stddev=0.001)
 
     net_conv, idn_net_conv = self._image_to_head(self.frcnn_training or self.quality_training)
-    self.debug_net_conv = net_conv
-    self.debug_idn_net_conv = idn_net_conv
+    self.idn_net_conv = idn_net_conv
     with tf.variable_scope(self._scope, self._scope):
       # build the anchors for the image
       self._anchor_component()
@@ -275,8 +293,8 @@ class Network(object):
                                                                                       bbox_pred,
                                                                                       rois,
                                                                                       "idn")
-
-          idn_feat_sim = self._rin(idn_net_conv, input_boxes, clss, False)
+          net = self._crop_pool_layer(idn_net_conv, input_boxes, 31, 4, "pool")
+          idn_feat_sim = self._rin(net, False)
           self._predictions["idn_feat_sim"] = idn_feat_sim
 
         elif self.quality_training:
@@ -285,20 +303,25 @@ class Network(object):
                                                                                       self._gt_boxes,
                                                                                       self._predictions['rois'],
                                                                                       "idn")
-
-          idn_feat_qual = self._rin(idn_net_conv, input_boxes, clss, True)
+          net = self._crop_pool_layer(idn_net_conv, input_boxes, 31, 4, "pool")
+          idn_feat_qual = self._rin(net, True)
           self._predictions["idn_feat_qual"] = idn_feat_qual
 
         elif self.similarity_training:
-          input_boxes, clss, input_clss, input_scores = self._idn_sim_proposal_layer(self._predictions['cls_prob'],
-                                                                                     self._predictions['bbox_pred'],
-                                                                                     self._gt_boxes,
-                                                                                     self._predictions['rois'],
-                                                                                     "idn")
-          idn_feat_sim = self._rin(idn_net_conv, input_boxes, clss, True)
+          # input_boxes, input_clss, input_scores = self._idn_sim_proposal_layer(self._rin_placeholder['cls_prob'],
+          #                                                                      self._rin_placeholder['bbox_pred'],
+          #                                                                      self._gt_boxes,
+          #                                                                      self._rin_placeholder['rois'],
+          #                                                                      "idn")
+          # input_boxes, input_clss, input_scores = self._idn_sim_proposal_layer(self._predictions['cls_prob'],
+          #                                                                      self._predictions['bbox_pred'],
+          #                                                                      self._gt_boxes,
+          #                                                                      self._predictions['rois'],
+          #                                                                      "idn")
+          feat_cropped = self._crop_pool_layer(self._rin_placeholder["idn_net_conv"], self._rin_placeholder['input_boxes'], 31, 4, "pool")
+          idn_feat_sim = self._rin(feat_cropped, True)
           self._predictions["idn_feat_sim"] = idn_feat_sim
         self._score_summaries.update(self._predictions)
-
         return rois
 
   def _smooth_l1_loss(self, bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights, sigma=1.0, dim=[1]):
@@ -337,16 +360,16 @@ class Network(object):
             lambda: instead(loss))
     return loss
 
-  def _ID_loss(self, idn_feat_sim, pIOU, dppLabel, intraDppLabel, clssLabel, quality):
+  def _ID_loss(self, idn_feat_sim, pIOU, intraDppLabel, clssLabel, dppLabel, quality): #
     self.V = V = tf.nn.l2_normalize(idn_feat_sim, 1)
     self.S = S = tf.matmul(V, V, False, True)
     M = tf.shape(V)[0]
     L = tf.sqrt(tf.tile(quality, [1, M])) * (0.6*S + 0.4*pIOU) * tf.sqrt(tf.tile(tf.transpose(quality), [M, 1]))
     L = (L + tf.transpose(L))/2.
     denom = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(L + tf.eye(tf.size(L[0]))))))
-    nom = tf.reduce_prod(tf.gather(quality, dppLabel))*tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + cfg.EPSILON*tf.eye(tf.size(L[0])), dppLabel)),dppLabel)))))
+    nom = tf.reduce_prod(tf.gather(quality, dppLabel))*tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(S + cfg.EPSILON*tf.eye(tf.size(L[0])), dppLabel)), dppLabel)))))
     inter_loss = -(tf.log(nom) - tf.log(denom))
-    inter_except_loss = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), dppLabel)),dppLabel)))))
+    inter_except_loss = tf.square(tf.reduce_prod(tf.diag_part(tf.cholesky(tf.gather(tf.transpose(tf.gather(L + tf.eye(tf.size(L[0])), dppLabel)), dppLabel)))))
 
     inter_loss = tf.cond(tf.is_nan(inter_loss) | tf.is_inf(inter_loss),
             lambda: instead(inter_except_loss),
@@ -364,6 +387,7 @@ class Network(object):
              lambda: instead(intra_loss))
 
     loss = intra_loss + inter_loss
+    # loss = inter_loss
     return loss
 
   def _add_losses(self, sigma_rpn=3.0):
@@ -412,9 +436,10 @@ class Network(object):
 
       elif self.similarity_training:
         # IDN, dpp loss
-        ID_loss = tf.cond(self._idn_sim_values['idn_train'],
-                lambda: self.train_sim_func(),
-                lambda: zerof())
+        ID_loss = self.train_sim_func()
+        # ID_loss = tf.cond(self._idn_sim_values['idn_train'],
+        #         lambda: self.train_sim_func(),
+        #         lambda: zerof())
         self._losses['ID_loss'] = ID_loss
         loss = ID_loss
 
@@ -476,13 +501,13 @@ class Network(object):
     return SS_loss
 
   def train_sim_func(self):
-    idn_feat_sim = self._predictions['idn_feat_sim']
-    clssLabel = self._idn_sim_values['clssLabel']
-    pIOU = self._idn_sim_values['pIOU']
-    intraDppLabel = self._idn_sim_values['intraDppLabel']
-    dppLabel = self._idn_sim_values['dppLabel']
+    idn_feat_sim = self._predictions["idn_feat_sim"]
+    clssLabel = self._rin_placeholder['clssLabel']
+    pIOU = self._rin_placeholder['pIOU']
+    intraDppLabel = self._rin_placeholder['intraDppLabel']
+    dppLabel = self._rin_placeholder['dppLabel']
     quality = tf.ones([tf.shape(idn_feat_sim)[0], 1], tf.float32)
-    ID_loss = cfg.TRAIN.SIM_LR * self._ID_loss(idn_feat_sim, pIOU, dppLabel, intraDppLabel, clssLabel, quality)
+    ID_loss = cfg.TRAIN.SIM_LR * self._ID_loss(idn_feat_sim, pIOU, intraDppLabel, clssLabel, dppLabel, quality) #
     return ID_loss
 
   def _region_proposal(self, net_conv, is_training, initializer):
@@ -584,40 +609,38 @@ class Network(object):
     means = np.tile(np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS), (self._num_classes))
     bbox_pred *= stds
     bbox_pred += means
-    with tf.variable_scope(name) as scope:
-      input_boxes, input_clss, input_scores, pIOU, clss, objects, \
-      idn_train, dppLabel, intraDppLabel, clssLabel, mask, add_gt \
+    with tf.variable_scope(name) as scope: #idn_train, dppLabel, mask, add_gt , clss, objects\
+      input_boxes, input_clss, input_scores, pIOU, dppLabel, intraDppLabel, clssLabel \
         = tf.py_func(idn_sim_proposal_layer,
                      [cls_score, bbox_pred, gts, rois, self._im_info, self._num_classes],
-                     [tf.float32, tf.int32, tf.float32, tf.float32, tf.float32, tf.int32,
-                      tf.int32, tf.int32, tf.int32, tf.int32, tf.int32, tf.bool],
-                     name="idn_proposal")
+                     [tf.float32, tf.int32, tf.float32, tf.float32, tf.int32, tf.int32, tf.int32], name="idn_proposal")
+      # tf.int32 tf.int32, tf.int32, tf.int32, tf.bool , tf.float32, tf.int32
 
       input_boxes = tf.reshape(input_boxes, [-1, 5], name='input_boxes')
       input_clss = tf.reshape(input_clss, [-1, 1], name='input_clss')
       input_scores = tf.reshape(input_scores, [-1, ], name='input_scores')
       pIOU = tf.reshape(pIOU, [tf.shape(pIOU)[0], tf.shape(pIOU)[1]], name='pIOU')
-      idn_train = tf.cast(tf.reshape(idn_train,[]), tf.bool)
-      clss = tf.reshape(clss, [-1, self._num_classes], name='clss')
+      # idn_train = tf.cast(tf.reshape(idn_train,[]), tf.bool)
+      # clss = tf.reshape(clss, [-1, self._num_classes], name='clss')
       dppLabel = tf.reshape(dppLabel, [-1, ], name='dppLabel')
       intraDppLabel = tf.reshape(intraDppLabel, [tf.shape(intraDppLabel)[0], tf.shape(intraDppLabel)[1]], name='intraDppLabel')
       clssLabel = tf.reshape(clssLabel, [tf.shape(clssLabel)[0], tf.shape(clssLabel)[1]], name='clssLabel')
-      mask = tf.cast(tf.reshape(mask, [tf.shape(mask)[0], self._num_classes], name='mask'), tf.bool)
-      self.objects = tf.reshape(objects, [-1], name="objects")
+      # mask = tf.cast(tf.reshape(mask, [tf.shape(mask)[0], self._num_classes], name='mask'), tf.bool)
+      # self.objects = tf.reshape(objects, [-1], name="objects")
 
     self._idn_sim_values["input_boxes"] = input_boxes
     self._idn_sim_values["input_clss"] = input_clss
     self._idn_sim_values["input_scores"] = input_scores
     self._idn_sim_values["pIOU"] = pIOU
-    self._idn_sim_values["idn_train"] = idn_train
-    self._idn_sim_values["clss"] = clss
+    # self._idn_sim_values["idn_train"] = idn_train
+    # self._idn_sim_values["clss"] = clss
     self._idn_sim_values['intraDppLabel'] = intraDppLabel
     self._idn_sim_values['clssLabel'] = clssLabel
     self._idn_sim_values['dppLabel'] = dppLabel
-    self._idn_sim_values['mask'] = mask
-    self._idn_sim_values['add_gt'] = add_gt
+    # self._idn_sim_values['mask'] = mask
+    # self._idn_sim_values['add_gt'] = add_gt
 
-    return input_boxes, clss, input_clss, input_scores
+    return input_boxes, input_clss, input_scores
 
   def _idn_sim_target_layer(self, bbox_pred, gts, name):
     stds = np.tile(np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS), (self._num_classes))
@@ -651,11 +674,9 @@ class Network(object):
     self._idn_sim_values['intraDppLabel'] = intraDppLabel
     self._idn_sim_values['clssLabel'] = clssLabel
     self._idn_sim_values['dppLabel'] = dppLabel
-
     return input_boxes, clss, input_clss
 
   def _idn_proposal_test_layer(self, cls_prob, bbox_pred, rois, name):
-
     stds = np.tile(np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS), (self._num_classes))
     means = np.tile(np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS), (self._num_classes))
     bbox_pred *= stds
@@ -689,23 +710,40 @@ class Network(object):
   def _head_to_tail(self, pool5, is_training, reuse=None):
     raise NotImplementedError
 
-  def _rin(self, idn_net_conv, input_boxes,clss, is_training, reuse=None):
-    with tf.variable_scope("idn", "idn", reuse=reuse):
-      net = slim.repeat(idn_net_conv, 2, slim.conv2d, 64, [3, 3],
-                        trainable=is_training, scope='conv1', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
-      net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3],
-                        trainable=is_training, scope='conv2', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
-      net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
-      self.debug = net = slim.repeat(net, 3, slim.conv2d, 128, [3, 3],
-                        trainable=is_training, scope='conv3', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training})
-      net = self._crop_pool_layer(net, input_boxes, 15, 8, "pool")
-      net_flat = slim.flatten(net, scope='flatten')
-      fc6 = slim.fully_connected(net_flat, 1000, scope='fc1', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training}, trainable=is_training)
-      add_info = tf.concat([input_boxes, clss], 1)
-      net_concat = tf.concat([fc6, add_info], 1)
-      fc7 = slim.fully_connected(net_concat, 1000, scope='fc2', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True,'is_training':is_training}, trainable=is_training)
-      idn_feat_sim = slim.fully_connected(fc7, 256, scope='idn_feat_sim', activation_fn=None, trainable=is_training)
-    return idn_feat_sim
+  def _rin(self, net, is_training, reuse=None):
+      with tf.variable_scope("idn", "idn", reuse=tf.AUTO_REUSE):
+          with arg_scope([slim.conv2d, slim.fully_connected],
+                         normalizer_fn=slim.batch_norm,
+                         normalizer_params={'is_training': is_training}):
+                  net = slim.repeat(net, 2, slim.conv2d, 64, [3, 3], trainable=is_training, scope='conv1')
+                  net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
+                  net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], trainable=is_training, scope='conv2')
+                  net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool2')
+                  net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], trainable=is_training, scope='conv3')
+                  net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool3')
+                  net_flat = slim.flatten(net, scope='flatten')
+                  fc6 = slim.fully_connected(net_flat, 1000, scope='fc6', trainable=is_training)
+                  fc7 = slim.fully_connected(fc6, 1000, scope='fc7', trainable=is_training)
+          idn_feat_sim = slim.fully_connected(fc7, 256, scope='idn_feat_sim', activation_fn=None, trainable=is_training)
+      return idn_feat_sim
+
+  # def _rin(self, idn_net_conv, input_boxes, clss, is_training, reuse=None):
+  #   with tf.variable_scope("idn", "idn", reuse=reuse):
+  #     net = slim.repeat(idn_net_conv, 2, slim.conv2d, 64, [3, 3],
+  #                       trainable=is_training, scope='conv1', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True, 'is_training':is_training})
+  #     net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3],
+  #                       trainable=is_training, scope='conv2', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True, 'is_training':is_training})
+  #     net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
+  #     net = slim.repeat(net, 3, slim.conv2d, 128, [3, 3],
+  #                       trainable=is_training, scope='conv3', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True, 'is_training':is_training})
+  #     net = self._crop_pool_layer(net, input_boxes, 15, 8, "pool")
+  #     net_flat = slim.flatten(net, scope='flatten')
+  #     fc6 = slim.fully_connected(net_flat, 1000, scope='fc1', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True, 'is_training':is_training}, trainable=is_training)
+  #     add_info = tf.concat([input_boxes, clss], 1)
+  #     net_concat = tf.concat([fc6, add_info], 1)
+  #     fc7 = slim.fully_connected(net_concat, 1000, scope='fc2', normalizer_fn=slim.batch_norm, normalizer_params={'trainable': True, 'is_training':is_training}, trainable=is_training)
+  #     idn_feat_sim = slim.fully_connected(fc7, 256, scope='idn_feat_sim', activation_fn=None, trainable=is_training)
+  #   return idn_feat_sim
 
   def create_architecture(self, mode, num_classes, tag=None,
                           anchor_scales=(8, 16, 32), anchor_ratios=(0.5, 1, 2)):
@@ -742,7 +780,7 @@ class Network(object):
       biases_regularizer = tf.no_regularizer
 
     # list as many types of layers as possible, even if they are not used now
-    with arg_scope([slim.conv2d, slim.conv2d_in_plane, \
+    with arg_scope([slim.conv2d, slim.conv2d_in_plane,
                     slim.conv2d_transpose, slim.separable_conv2d, slim.fully_connected], 
                     weights_regularizer=weights_regularizer,
                     biases_regularizer=biases_regularizer, 
@@ -835,7 +873,7 @@ class Network(object):
     feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                  self._gt_boxes: blobs['gt_boxes']}
     if self.similarity_training:
-      sim_train = sess.run(self._idn_sim_values['idn_train'], feed_dict=feed_dict)
+      sim_train = True #sess.run(self._idn_sim_values['idn_train'], feed_dict=feed_dict)
       qual_train = False
     elif self.quality_training:
       qual_train = sess.run(self._idn_qual_values['idn_train'], feed_dict=feed_dict)
@@ -868,20 +906,90 @@ class Network(object):
                                                                                           self._losses['total_loss'],
                                                                                           train_op],
                                                                                          feed_dict=feed_dict)
-      blob['rpn_loss_cls']= rpn_loss_cls
-      blob['rpn_loss_box']= rpn_loss_box
-      blob['loss_cls']= loss_cls
-      blob['loss_box']= loss_box
-      blob['SS_loss']= SS_loss
-      blob['loss']= loss
+      blob['rpn_loss_cls'] = rpn_loss_cls
+      blob['rpn_loss_box'] = rpn_loss_box
+      blob['loss_cls'] = loss_cls
+      blob['loss_box'] = loss_box
+      blob['SS_loss'] = SS_loss
+      blob['loss'] = loss
 
     elif self.similarity_training:
-      ID_loss, _ = sess.run([self._losses["ID_loss"],
-                                        train_op],
-                            feed_dict=feed_dict)
-      blob['ID_loss']= ID_loss
-
+      idn_conv_feat_val, bbox_pred_val, cls_prob_val, rois_val = sess.run([self.idn_net_conv, self._predictions["bbox_pred"],
+                                                                           self._predictions["cls_prob"], self._predictions["rois"]], feed_dict=feed_dict)
+      stds = np.tile(np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS), (self._num_classes))
+      means = np.tile(np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS), (self._num_classes))
+      bbox_pred_val *= stds
+      bbox_pred_val += means
+      self._memory.append((idn_conv_feat_val, cls_prob_val, bbox_pred_val, blobs['gt_boxes'], blobs['im_info']))
+      if len(self._memory) >= MEMORY_SIZE:
+        sim_feed_dict = self.balanced_sim_feed()
+        ID_loss, _ = sess.run([self._losses["ID_loss"], train_op], feed_dict=sim_feed_dict)
+        blob['ID_loss'] = ID_loss
     return blob, sim_train, qual_train
+
+  def balanced_sim_feed(self):
+    input_boxes, input_clss, input_scores, pIOU, dppLabel, intraDppLabel, clssLabel = idn_sim_proposal_layer(cls_prob_val,
+                                                                                                             bbox_pred_val,
+                                                                                                             blobs['gt_boxes'],
+                                                                                                             rois_val,
+                                                                                                             blobs['im_info'],
+                                                                                                             self._num_classes)
+    idn_conv_feat_val, cls_prob_val, bbox_pred_val, blobs['gt_boxes'], blobs['im_info']
+    feat_cropped_val_all, pIOU_all, dppLabel_all, input_clss_all, intraDppLabel_pre, clssLabel_all = [], [], [], [], [], []
+    mini_batch = random.sample(self._memory, 3)
+    for i in range(len(mini_batch)):
+      idn_conv_feat_val, cls_prob_val, dppLabel, input_clss, intraDppLabel, clssLabel = deepcopy(mini_batch[i])
+      feat_cropped_val_all.append(feat_cropped_val)
+      pIOU_all.append(pIOU)
+      dppLabel_all.append(dppLabel)
+      input_clss_all.append(input_clss)
+      intraDppLabel_pre.append(intraDppLabel)
+      clssLabel_all.append(clssLabel)
+    len_input_boxes = np.cumsum(np.insert([len(feat_cropped_val_all[j]) for j in range(len(feat_cropped_val_all))], 0, 0))[:-1]
+    feat_cropped_val_all = np.concatenate(feat_cropped_val_all, axis=0)
+    input_clss_all = np.concatenate(input_clss_all)
+    pIOU_all = scipy.linalg.block_diag(*pIOU_all)
+    dppLabel_all = np.concatenate([dppLabel_all[i] + len_input_boxes[i] for i in range(len(dppLabel_all))])
+
+    # intraDppLabel_all, intraDppClss_all = self._idn_intra_label(input_clss_all, dppLabel_all)
+
+    # intraDppLabel_pre = np.concatenate([list(intraDppLabel_pre + len_input_boxes)[i].reshape(-1) for i in range(len(intraDppLabel_pre))])
+    # intraDppLabel_pre = intraDppLabel_pre[intraDppLabel_pre>=0]
+    # intraDppLabel_clss = input_clss_all[intraDppLabel_pre]
+    #
+    # max_len = Counter(list(intraDppLabel_clss.squeeze())).most_common(1)[0][1]
+    # intraDppLabel_all = np.ones((len(np.unique(intraDppLabel_clss)), max_len)) * (-1)
+    # for cnt, ii in enumerate(np.unique(intraDppLabel_clss)):
+    #   intraDppLabel_all[cnt, :np.sum(intraDppLabel_clss==ii)] = np.array(intraDppLabel_pre[np.where((intraDppLabel_clss==ii))[0]])
+    #
+    # clssLabel_all = np.concatenate(list([clssLabel_all[ii] + len_input_boxes[ii] for ii in range(len(len_input_boxes))]))
+
+    while len(feat_cropped_val_all) > 300:
+      count = Counter(list(input_clss_all.squeeze()))
+      argmax_index = count.most_common(1)[0][0]
+      pop_candidate = np.where(input_clss_all.squeeze() == argmax_index)[0]
+      in_dpplabel = True
+      while in_dpplabel:
+        pop_index = random.sample(pop_candidate, 5)
+        in_dpplabel = any([pop_index[i] in dppLabel_all for i in range(len(pop_index))])
+      feat_cropped_val_all = np.delete(feat_cropped_val_all, pop_index, 0)
+      input_clss_all = np.delete(input_clss_all, pop_index, 0)
+      for aa in sorted(pop_index, reverse=True):
+        dppLabel_all[dppLabel_all > aa] -= 1
+      pIOU_all = np.delete(np.delete(pIOU_all, pop_index, 0), pop_index, 1)
+
+    intraDppLabel_all, intraDppClss_all = self._idn_intra_label(input_clss_all, dppLabel_all)
+
+    # print(feat_cropped_val_all.shape[0])
+    # print(dppLabel_all.shape)
+
+    return {
+      self._rin_placeholder["feat_cropped"]: feat_cropped_val_all,
+      self._rin_placeholder["pIOU"]: pIOU_all,
+      self._rin_placeholder["dppLabel"]: dppLabel_all,
+      self._rin_placeholder["intraDppLabel"]: intraDppLabel_all,
+      self._rin_placeholder["clssLabel"]: intraDppClss_all
+    }
 
   def train_step_with_summary(self, sess, blobs, train_op):
     feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],

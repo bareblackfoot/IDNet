@@ -1,3 +1,8 @@
+# --------------------------------------------------------
+# IDNet
+# Licensed under The MIT License [see LICENSE for details]
+# Written by Nuri Kim
+# --------------------------------------------------------
 import numpy as np
 from model.bbox_transform import bbox_transform_inv
 from utils.cython_bbox import bbox_overlaps
@@ -7,6 +12,8 @@ from utils.myutils import *
 from scipy.optimize import linear_sum_assignment
 from model.config import cfg
 import copy
+import random
+from collections import deque
 
 def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
     input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, mask, add_gt, posDppLabel = \
@@ -15,13 +22,13 @@ def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
     input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
     clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
-    if len(input_boxes) == 0 or len(posDppLabel)>cfg.TRAIN.LABEL_LIM:
-        input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
-        input_clss = np.zeros((1, 1))
-        input_scores = np.zeros((1,))
-        pIOU = np.zeros((1, 1))
+    if len(input_boxes) == 0: # or len(gts) > cfg.TRAIN.LABEL_LIM
+        # input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
+        # input_clss = np.zeros((1, 1))
+        # input_scores = np.zeros((1,))
+        # pIOU = np.zeros((1, 1))
         num_patch = np.array([0])
-        clss = np.zeros((1, num_clss))
+        # clss = np.zeros((1, num_clss))
 
     return input_boxes.astype(np.float32, copy=False), input_clss.astype(np.int32, copy=False), \
            input_scores.astype(np.float32, copy=False), pIOU.astype(np.float32, copy=False), \
@@ -30,27 +37,31 @@ def idn_qual_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
            add_gt, posDppLabel.astype(np.int32, copy=False)
 
 def idn_sim_proposal_layer(scores, box_deltas, gts, rois, im_info, num_clss):
+    gt_len = gts.shape[0]
+    if gt_len > 3:
+        remain_index = random.sample(np.arange(gt_len), 3)
+        gts = gts[remain_index, :]
     input_boxes, input_scores, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel, mask, add_gt, _ = \
         _preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh=0.7, top_n=(num_clss-1), scores_thresh=0.001)
     intraDppLabel, clssLabel = _idn_intra_label(input_clss, dppLabel)
 
     input_boxes = np.column_stack((np.zeros(np.shape(input_boxes)[0]), input_boxes))
-    clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
+    # clss = np.reshape(np.eye(num_clss)[np.squeeze(input_clss)], [-1, num_clss])
     num_patch = np.array([1])
-    if len(input_boxes)==0 or len(dppLabel)>15:
-        input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
-        input_clss = np.zeros((1, 1))
-        input_scores = np.zeros((1,))
-        pIOU = np.zeros((1, 1))
+    if len(input_boxes)==0: #or len(dppLabel) > cfg.TRAIN.LABEL_LIM:
+        # input_boxes = np.array([[0, 0, 0, 1, 1]]).astype(np.float32, copy=False)
+        # input_clss = np.zeros((1, 1))
+        # input_scores = np.zeros((1,))
+        # pIOU = np.zeros((1, 1))
         num_patch = np.array([0])
-        clss = np.zeros((1, num_clss))
+        # clss = np.zeros((1, num_clss))
 
     return input_boxes.astype(np.float32, copy=False), input_clss.astype(np.int32, copy=False), \
            input_scores.astype(np.float32, copy=False), pIOU.astype(np.float32, copy=False), \
-           clss.astype(np.float32, copy=False), assign_gt_ind.astype(np.int32, copy=False), \
-           num_patch.astype(np.int32, copy=False), dppLabel.astype(np.int32, copy=False), \
-           intraDppLabel.astype(np.int32, copy=False), clssLabel.astype(np.int32, copy=False), \
-           mask.astype(np.int32, copy=False), add_gt, \
+           dppLabel.astype(np.int32, copy=False), \
+           intraDppLabel.astype(np.int32, copy=False), clssLabel.astype(np.int32, copy=False)
+           # assign_gt_ind.astype(np.int32, copy=False),  clss.astype(np.float32, copy=False),  num_patch.astype(np.int32, copy=False), \
+           # mask.astype(np.int32, copy=False), add_gt, \
 
 def idn_sim_target_layer(gts, im_info, num_clss):
     input_boxes, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel = \
@@ -106,11 +117,11 @@ def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, top_n, scores_thr
     box_high_scores = high_scores[0]
     input_scores = np.reshape(scores[box_high_scores, lbl_high_scores], (lbl_high_scores.shape[0],))
     input_boxes = np.reshape(
-        all_boxes[np.tile(box_high_scores, 4), np.hstack((np.multiply(4,lbl_high_scores), np.add(np.multiply(4,lbl_high_scores),1), \
+        all_boxes[np.tile(box_high_scores, 4), np.hstack((np.multiply(4,lbl_high_scores), np.add(np.multiply(4,lbl_high_scores),1),
                                                           np.add(np.multiply(4, lbl_high_scores), 2),
                                                           np.add(np.multiply(4, lbl_high_scores), 3)))],
         (lbl_high_scores.shape[0], 4), order='F')
-    input_clss = np.add(lbl_high_scores,1)
+    input_clss = np.add(lbl_high_scores, 1)
 
     index_row = np.where((scores_new >= scores_thresh))[0]
     index_column = np.where((scores_new >= scores_thresh))[1]
@@ -123,7 +134,7 @@ def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, top_n, scores_thr
         add_gt = True
     else:
         gt_overlaps_temp = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
-                                 np.ascontiguousarray(input_boxes, dtype=np.float))
+                                         np.ascontiguousarray(input_boxes, dtype=np.float))
         assign_gt_ind_temp = np.argmax(gt_overlaps_temp, 0)
         assign_gt_ind_temp = np.where((np.max(gt_overlaps_temp, 0) > 0.8) & (gt_clss[assign_gt_ind_temp] == input_clss))[0]
         if len(assign_gt_ind_temp)<1:
@@ -133,7 +144,7 @@ def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, top_n, scores_thr
             add_gt = True
         else:
             gt_overlaps_temp = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
-                                     np.ascontiguousarray(input_boxes[assign_gt_ind_temp], dtype=np.float))
+                                             np.ascontiguousarray(input_boxes[assign_gt_ind_temp], dtype=np.float))
             gt_overlaps_temp = 1/gt_overlaps_temp
             gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
             if len(linear_sum_assignment(gt_overlaps_temp)[1]) != len(gt_clss):
@@ -143,7 +154,7 @@ def _roi_preprocessing(scores, box_deltas, gts, rois, im_info, top_n, scores_thr
                 add_gt = True
 
     gt_overlaps = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
-                             np.ascontiguousarray(input_boxes, dtype=np.float))
+                                np.ascontiguousarray(input_boxes, dtype=np.float))
     pIOU = bbox_overlaps(np.ascontiguousarray(input_boxes, dtype=np.float),
                          np.ascontiguousarray(input_boxes, dtype=np.float))
     assign_gt_ind = np.argmax(gt_overlaps, 0)
@@ -187,31 +198,31 @@ def _preprocessing(scores, box_deltas, gts, rois, im_info, num_clss, thresh, top
     input_boxes = input_boxes[index]
     input_clss = input_clss[index]
 
-    if len(input_boxes) < 1:
-        input_boxes = np.vstack((input_boxes, gt_boxes))
-        input_scores = np.hstack((input_scores, [1] * len(gt_boxes)))
-        input_clss = np.hstack((input_clss, gt_clss))
-        add_gt = True
-    else:
-        gt_overlaps_temp = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
-                                 np.ascontiguousarray(input_boxes, dtype=np.float))
-        assign_gt_ind_temp = np.argmax(gt_overlaps_temp, 0)
-        assign_gt_ind_temp = np.where((np.max(gt_overlaps_temp, 0) > 0.8) & (gt_clss[assign_gt_ind_temp] == input_clss))[0]
-        if len(assign_gt_ind_temp)<1:
-            input_boxes = np.vstack((input_boxes, gt_boxes))
-            input_scores = np.hstack((input_scores, [1] * len(gt_boxes)))
-            input_clss = np.hstack((input_clss, gt_clss))
-            add_gt = True
-        else:
-            gt_overlaps_temp = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
-                                     np.ascontiguousarray(input_boxes[assign_gt_ind_temp], dtype=np.float))
-            gt_overlaps_temp = 1/gt_overlaps_temp
-            gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
-            if len(linear_sum_assignment(gt_overlaps_temp)[1]) != len(gt_clss):
-                input_boxes = np.vstack((input_boxes, gt_boxes))
-                input_scores = np.hstack((input_scores, [1] * len(gt_boxes)))
-                input_clss = np.hstack((input_clss, gt_clss))
-                add_gt = True
+    # if len(input_boxes) < 1:
+    #     input_boxes = np.vstack((input_boxes, gt_boxes))
+    #     input_scores = np.hstack((input_scores, [1] * len(gt_boxes)))
+    #     input_clss = np.hstack((input_clss, gt_clss))
+    #     add_gt = True
+    # else:
+    #     gt_overlaps_temp = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
+    #                              np.ascontiguousarray(input_boxes, dtype=np.float))
+    #     assign_gt_ind_temp = np.argmax(gt_overlaps_temp, 0)
+    #     assign_gt_ind_temp = np.where((np.max(gt_overlaps_temp, 0) > 0.8) & (gt_clss[assign_gt_ind_temp] == input_clss))[0]
+    #     if len(assign_gt_ind_temp)<1:
+    #         input_boxes = np.vstack((input_boxes, gt_boxes))
+    #         input_scores = np.hstack((input_scores, [1] * len(gt_boxes)))
+    #         input_clss = np.hstack((input_clss, gt_clss))
+    #         add_gt = True
+    #     else:
+    #         gt_overlaps_temp = bbox_overlaps(np.ascontiguousarray(gt_boxes, dtype=np.float),
+    #                                  np.ascontiguousarray(input_boxes[assign_gt_ind_temp], dtype=np.float))
+    #         gt_overlaps_temp = 1/gt_overlaps_temp
+    #         gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
+    #         if len(linear_sum_assignment(gt_overlaps_temp)[1]) != len(gt_clss):
+    #             input_boxes = np.vstack((input_boxes, gt_boxes))
+    #             input_scores = np.hstack((input_scores, [1] * len(gt_boxes)))
+    #             input_clss = np.hstack((input_clss, gt_clss))
+    #             add_gt = True
 
     index_row = np.where((scores >= scores_thresh))[0][index]
     index_column = np.where((scores >= scores_thresh))[1][index]
@@ -270,8 +281,7 @@ def _gt_preprocessing(gts, im_info):
                          np.ascontiguousarray(input_boxes, dtype=np.float))
 
     assign_gt_ind = np.argmax(gt_overlaps, 0)
-    gt_overlaps_temp = 1/gt_overlaps
-    gt_overlaps_temp[np.isinf(gt_overlaps_temp)] = 100000
+    gt_overlaps_temp = 1/(gt_overlaps+1e-5)
     dppLabel = linear_sum_assignment(gt_overlaps_temp)[1]
 
     return input_boxes, input_clss, gt_overlaps, pIOU, assign_gt_ind, dppLabel
@@ -284,23 +294,21 @@ def _idn_label(input_boxes, gts):
     return np.argmax(gt_overlaps, 1)
 
 def _idn_intra_label(input_clss, dppLabel):
-    intraDppClss = [np.where(input_clss == cls)[0] for cls in np.unique(input_clss) if
-                    len(np.where(input_clss == cls)[0]) > 0]
-    intraDppLabel = [np.array(list(set(dppLabel).intersection(intraDppClss[i])))
-                     for i in range(len(intraDppClss))]
+    intraDppClss = [np.where(input_clss == cls)[0] for cls in np.unique(input_clss) if len(np.where(input_clss == cls)[0]) > 0]
+    intraDppLabel = [np.array(list(set(dppLabel).intersection(intraDppClss[i]))) for i in range(len(intraDppClss))]
 
     intraDppClss = [intraDppClss[i] for i in range(len(intraDppLabel)) if len(intraDppLabel[i]) > 0]
     intraDppLabel = [intraDppLabel[i] for i in range(len(intraDppLabel)) if len(intraDppLabel[i]) > 0]
 
     intraDppClss_pre = [intraDppClss[i] for i in range(len(intraDppLabel)) if len(intraDppLabel[i]) > 0]
     max_len = np.max([len(intraDppClss_pre[i]) for i in range(len(intraDppClss_pre))])
-    intraDppClss = np.ones((len(intraDppClss_pre), max_len)) * (-1)
+    intraDppClss = np.ones((len(intraDppClss_pre), max_len)) * (-1000000)
     for ii in range(len(intraDppClss)):
         intraDppClss[ii, :len(intraDppClss_pre[ii])] = np.array(intraDppClss_pre[ii])
 
     intraDppLabel_pre = [intraDppLabel[i] for i in range(len(intraDppLabel)) if len(intraDppLabel[i]) > 0]
     max_len = np.max([len(intraDppLabel_pre[i]) for i in range(len(intraDppLabel_pre))])
-    intraDppLabel = np.ones((len(intraDppLabel_pre), max_len)) * (-1)
+    intraDppLabel = np.ones((len(intraDppLabel_pre), max_len)) * (-1000000)
     for ii in range(len(intraDppLabel_pre)):
         intraDppLabel[ii, :len(intraDppLabel_pre[ii])] = np.array(intraDppLabel_pre[ii])
 
@@ -360,4 +368,3 @@ def _clip_boxes(boxes, im_shape):
   # y2 < im_shape[0]
   boxes[:, 3::4] = np.minimum(boxes[:, 3::4], im_shape[0] - 1)
   return boxes
-

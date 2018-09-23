@@ -14,7 +14,7 @@ __C = edict()
 cfg = __C
 
 #IDNet
-__C.EPSILON = 0.001
+__C.EPSILON = 0.0
 
 #
 # Training options

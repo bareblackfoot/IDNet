@@ -22,9 +22,9 @@ from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
 from nets.mobilenet_v1 import mobilenetv1
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-# os.environ["OMP_NUM_THREADS"] = "1"
-# os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def parse_args():
   """
@@ -46,13 +46,13 @@ def parse_args():
                       default='voc_2007_test', type=str)
   parser.add_argument('--iters', dest='max_iters',
                       help='number of iterations to train',
-                      default=70000, type=int)
+                      default=110000, type=int)
   parser.add_argument('--tag', dest='tag',
                       help='tag of the model',
                       default="default", type=str)
   parser.add_argument('--mode', dest='mode',
                       help='mode of training [FRCNN, QUAL, SIM]',
-                      default="QUAL", type=str)
+                      default="SIM", type=str)
   parser.add_argument('--net', dest='net',
                       help='vgg16, res50, res101, res152, mobile',
                       default='res50', type=str)

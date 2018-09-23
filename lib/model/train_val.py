@@ -23,7 +23,7 @@ import time
 
 import tensorflow as tf
 from tensorflow.python import pywrap_tensorflow
-from utils.myutils import *
+from utils.myutils import load
 
 class SolverWrapper(object):
   """
@@ -300,39 +300,40 @@ class SolverWrapper(object):
       blobs = self.data_layer.forward()
 
       now = time.time()
-      if iter == 1 or now - last_summary_time > cfg.TRAIN.SUMMARY_INTERVAL:
-        # Compute the graph with summary
-        out_blob, sim_train, qual_train = \
-          self.net.train_step_with_summary(sess, blobs, train_op)
-        if self.frcnn_training:
-            self.writer.add_summary(out_blob['summary'], float(iter))
-        elif self.quality_training:
-          if qual_train:
-            self.writer.add_summary(out_blob['summary'], float(iter))
-        elif self.similarity_training:
-          if sim_train:
-            self.writer.add_summary(out_blob['summary'], float(iter))
-        # Also check the summary on the validation set
-        blobs_val = self.data_layer_val.forward()
-        summary_val = self.net.get_summary(sess, blobs_val)
-        self.valwriter.add_summary(summary_val, float(iter))
-        last_summary_time = now
-      else:
+      # if iter == 1 or now - last_summary_time > cfg.TRAIN.SUMMARY_INTERVAL:
+      #   # Compute the graph with summary
+      #   out_blob, sim_train, qual_train = \
+      #     self.net.train_step_with_summary(sess, blobs, train_op)
+      #   if self.frcnn_training:
+      #       self.writer.add_summary(out_blob['summary'], float(iter))
+      #   elif self.quality_training:
+      #     if qual_train:
+      #       self.writer.add_summary(out_blob['summary'], float(iter))
+      #   elif self.similarity_training:
+      #     if sim_train:
+      #       self.writer.add_summary(out_blob['summary'], float(iter))
+      #   # Also check the summary on the validation set
+      #   blobs_val = self.data_layer_val.forward()
+      #   summary_val = self.net.get_summary(sess, blobs_val)
+      #   self.valwriter.add_summary(summary_val, float(iter))
+      #   last_summary_time = now
+      # else:
         # Compute the graph without summary
-        out_blob, sim_train, qual_train = \
+      out_blob, sim_train, qual_train = \
           self.net.train_step(sess, blobs, train_op)
       timer.toc()
 
       # Display training information
       if iter % (cfg.TRAIN.DISPLAY) == 0:
         print ('iter: %d / %d,' % (iter, max_iters))
-        if sim_train:
+        if sim_train and iter >= 70010:
           print(' >>> ID_loss: %.6f' % (out_blob['ID_loss']))
         elif qual_train:
           try:
             print(' >>> SS_loss: %.6f' % (out_blob['SS_loss']))
           except:
             pass
+        if self.quality_training:
           print(' >>> rpn_loss_cls: %.6f\n >>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f' %
                 (out_blob['rpn_loss_cls'], out_blob['rpn_loss_box'], out_blob['loss_cls'], out_blob['loss_box']))
         elif self.frcnn_training:
@@ -406,8 +407,8 @@ def train_net(network, imdb, roidb, valroidb, output_dir, tb_dir, mode,
   roidb = filter_roidb(roidb)
   valroidb = filter_roidb(valroidb)
 
-  tfconfig = tf.ConfigProto(allow_soft_placement=True)
-  tfconfig.gpu_options.allow_growth = True
+  tfconfig = tf.ConfigProto(allow_soft_placement=False)
+  tfconfig.gpu_options.allow_growth = False
 
   with tf.Session(config=tfconfig) as sess:
     sw = SolverWrapper(sess, network, imdb, roidb, valroidb, output_dir, tb_dir,

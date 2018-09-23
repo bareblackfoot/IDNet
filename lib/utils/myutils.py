@@ -103,7 +103,7 @@ def dpp_infer(S, q, pIOU, sim_thresh, thresh):
     oldProb = np.log(np.linalg.det(oldS)) + np.log(reduce(lambda x, y: np.multiply(x,y),q[picks]))
     maxProb = oldProb
     while len(remains)>0:
-        tempProb = -100*np.ones_like(range(len(q)),dtype=np.float32)
+        tempProb = -100*np.ones_like(range(len(q)), dtype=np.float32)
         A = L[picks, :][:, picks]
         detA = np.linalg.det(A)
         C = L[picks, :][:, remains]

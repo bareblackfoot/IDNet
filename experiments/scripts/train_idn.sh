@@ -64,29 +64,29 @@ fi
 set -x
 exec &> >(tee -a "$LOG")
 echo Logging output to "$LOG"
-OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_net.py \
-  --weight data/imagenet_weights/${NET}.ckpt \
-  --imdb ${TRAIN_IMDB} \
-  --imdbval ${TEST_IMDB} \
-  --iters ${ITERS0} \
-  --cfg experiments/cfgs/${NET}.yml \
-  --mode "FRCNN" \
-  --net ${NET} \
-  --tag ${TAG} \
-  --set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
-  TRAIN.STEPSIZE ${STEPSIZE} ${EXTRA_ARGS}
-OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_net.py \
-  --weight output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/vgg16_faster_rcnn_iter_${ITERS0}.ckpt \
-  --imdb ${TRAIN_IMDB} \
-  --imdbval ${TEST_IMDB} \
-  --iters ${ITERS1} \
-  --cfg experiments/cfgs/${NET}_idn_${DATASET}.yml \
-  --mode "QUAL" \
-  --net ${NET} \
-  --tag ${TAG} \
-  --set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
-  TRAIN.STEPSIZE ${STEPSIZE} ${EXTRA_ARGS}
-./experiments/scripts/test_nms.sh $@
+#OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_net.py \
+#  --weight data/imagenet_weights/${NET}.ckpt \
+#  --imdb ${TRAIN_IMDB} \
+#  --imdbval ${TEST_IMDB} \
+#  --iters ${ITERS0} \
+#  --cfg experiments/cfgs/${NET}.yml \
+#  --mode "FRCNN" \
+#  --net ${NET} \
+#  --tag ${TAG} \
+#  --set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
+#  TRAIN.STEPSIZE ${STEPSIZE} ${EXTRA_ARGS}
+#OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_net.py \
+#  --weight output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/vgg16_faster_rcnn_iter_${ITERS0}.ckpt \
+#  --imdb ${TRAIN_IMDB} \
+#  --imdbval ${TEST_IMDB} \
+#  --iters ${ITERS1} \
+#  --cfg experiments/cfgs/${NET}_idn_${DATASET}.yml \
+#  --mode "QUAL" \
+#  --net ${NET} \
+#  --tag ${TAG} \
+#  --set ANCHOR_SCALES ${ANCHORS} ANCHOR_RATIOS ${RATIOS} \
+#  TRAIN.STEPSIZE ${STEPSIZE} ${EXTRA_ARGS}
+#./experiments/scripts/test_nms.sh $@
 OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=${GPU_ID} time python ./tools/trainval_net.py \
   --weight output/${NET}/${TRAIN_IMDB}/${EXTRA_ARGS_SLUG}/vgg16_faster_rcnn_iter_${ITERS1}.ckpt \
   --imdb ${TRAIN_IMDB} \
