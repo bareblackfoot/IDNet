@@ -1,4 +1,6 @@
 # IDNet
+Nuri Kim, Donghoon Lee, and Songhwai Oh, "Learning Instance-Aware Object Detection Using Determinantal Point Processes," Computer Vision and Image Understanding, 2020. (Accepted)
+
 A Tensorflow implementation of IDNet ([Learning Instance-Aware Object Detection Using Determinantal Point Processes](https://arxiv.org/pdf/1805.10765.pdf)) by Nuri Kim (nuri.kim@rllab.snu.ac.kr). This repository is based on the tensorflow implementation of Faster R-CNN available [here](https://github.com/endernewton/tf-faster-rcnn). 
 
 ### Citation
