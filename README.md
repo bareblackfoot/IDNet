@@ -10,7 +10,10 @@ If you find this paper helpful, please consider citing:
         Author = {{Nuri Kim and Donghoon Lee and Songhwai Oh}},
         Title = {{Learning Instance-Aware Object Detection Using Determinantal Point Processes}},
         Journal = {{Computer Vision and Image Understanding (CVIU)}},
-        Year = {2020}
+        Year = {2020},
+        volume = {201},
+        pages = {103061},
+        publisher = {Elsevier}
     }
 
 ### Detection Performance
